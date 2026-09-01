@@ -1,0 +1,6 @@
+{
+  "name": "FlexPDF - Client-Side PDF & SaaS Platform",
+  "description": "High-performance client-side PDF & image SaaS platform with zero-server file processing, tier subscriptions, SasPay card & mobile money checkout, and admin controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
