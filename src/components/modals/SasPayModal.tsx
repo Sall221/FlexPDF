@@ -103,6 +103,7 @@ export const SasPayModal: React.FC<SasPayModalProps> = ({
 }) => {
   const { user, upgradeSubscription, addNotification, login, siteSettings } = useApp();
 
+  const [activePlanId, setActivePlanId] = useState<SubscriptionPlanId>(selectedPlanId);
   const [paymentMethod, setPaymentMethod] = useState<PaymentTab>('mobile_money');
   
   // Mobile Money State
@@ -133,18 +134,23 @@ export const SasPayModal: React.FC<SasPayModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setActivePlanId(selectedPlanId);
       saspayService.getConfig().then((cfg) => {
         setGatewayConfig(cfg);
       });
     }
-  }, [isOpen]);
+  }, [isOpen, selectedPlanId]);
 
   if (!isOpen) return null;
 
-  const isAnnual = selectedPlanId === 'pro_annual';
-  const isEnterprise = selectedPlanId === 'enterprise';
+  const isAnnual = activePlanId === 'pro_annual';
+  const isEnterprise = activePlanId === 'enterprise';
 
-  const basePrice = isEnterprise ? 99 : isAnnual ? siteSettings.annualPrice || 79 : siteSettings.monthlyPrice || 9;
+  const monthlyPrice = siteSettings.monthlyPrice || 9;
+  const annualPrice = siteSettings.annualPrice || 79;
+  const discountSavings = Math.round(((monthlyPrice * 12 - annualPrice) / (monthlyPrice * 12)) * 100);
+
+  const basePrice = isEnterprise ? 99 : isAnnual ? annualPrice : monthlyPrice;
   const finalPrice = discountPercent > 0 ? Number((basePrice * (1 - discountPercent / 100)).toFixed(2)) : basePrice;
   const subtotal = Number((finalPrice / 1.2).toFixed(2));
   const taxVat = Number((finalPrice - subtotal).toFixed(2));
@@ -243,7 +249,7 @@ export const SasPayModal: React.FC<SasPayModalProps> = ({
       // Execute real full payment flow through SasPay API service
       const paymentResponse = await saspayService.executeFullPaymentFlow(
         {
-          planId: selectedPlanId,
+          planId: activePlanId,
           amount: finalPrice,
           currency: 'USD',
           paymentMethod: paymentMethod === 'mobile_money' ? 'mobile_money' : 'card',
@@ -282,7 +288,7 @@ export const SasPayModal: React.FC<SasPayModalProps> = ({
         login(emailInput || 'client@flexpdf.com', 'pro');
       }
 
-      upgradeSubscription(selectedPlanId, {
+      upgradeSubscription(activePlanId, {
         paymentMethod: paymentMethod === 'mobile_money' ? 'mobile_money' : 'card',
         cardLast4,
         cardBrand: brand,
@@ -346,33 +352,69 @@ export const SasPayModal: React.FC<SasPayModalProps> = ({
               </p>
             </div>
 
-            {/* Plan Price Summary Card */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
-              <div className="space-y-0.5">
-                <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">
-                  Forfait Sélectionné
-                </span>
-                <p className="font-bold text-sm text-white">
-                  {isEnterprise ? 'FlexPDF Enterprise' : isAnnual ? 'FlexPDF Pro (365 Jours)' : 'FlexPDF Pro (30 Jours)'}
-                </p>
-                <p className="text-xs text-slate-300">
-                  {isAnnual ? 'Facturé annuellement (Économisez 20%)' : 'Facturé mensuellement • Sans engagement'}
-                </p>
-              </div>
-
-              <div className="text-right sm:border-l sm:border-slate-800 sm:pl-4">
-                <div className="flex items-baseline justify-end gap-1">
-                  <span className="text-2xl font-black text-white">${finalPrice}</span>
-                  <span className="text-xs text-slate-300">/ {isAnnual ? 'an' : 'mois'}</span>
+            {/* Plan Selector & Price Summary Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white space-y-3 shadow-md">
+              {!isEnterprise && (
+                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-800/80 border border-slate-700/60 max-w-sm">
+                  <button
+                    type="button"
+                    onClick={() => setActivePlanId('pro_monthly')}
+                    className={`flex-1 py-1 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      !isAnnual
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Mensuel (${monthlyPrice}/m)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePlanId('pro_annual')}
+                    className={`flex-1 py-1 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      isAnnual
+                        ? 'bg-gradient-to-r from-indigo-600 to-rose-600 text-white shadow-2xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>Annuel (${annualPrice}/an)</span>
+                    <span className="px-1 py-0.2 rounded-full bg-rose-600 text-[9px] font-black">
+                      -{discountSavings}%
+                    </span>
+                  </button>
                 </div>
-                <span className="text-[11px] font-semibold text-amber-300 block">
-                  ~ {priceXOF.toLocaleString()} FCFA
-                </span>
-                {discountPercent > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-400 block line-through opacity-70">
-                    ${basePrice} ({discountPercent}% de remise)
+              )}
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">
+                    Forfait Sélectionné
                   </span>
-                )}
+                  <p className="font-bold text-sm text-white">
+                    {isEnterprise ? 'FlexPDF Enterprise' : isAnnual ? 'FlexPDF Pro (365 Jours)' : 'FlexPDF Pro (30 Jours)'}
+                  </p>
+                  <p className="text-xs text-slate-300">
+                    {isEnterprise
+                      ? 'Licence entreprise • Facturation annuelle'
+                      : isAnnual
+                      ? `Facturé annuellement (${(annualPrice / 12).toFixed(2)}$/mois) • Économisez ${discountSavings}%`
+                      : 'Facturé mensuellement • Sans engagement'}
+                  </p>
+                </div>
+
+                <div className="text-right sm:border-l sm:border-slate-800 sm:pl-4">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-2xl font-black text-white">${finalPrice}</span>
+                    <span className="text-xs text-slate-300">/ {isAnnual || isEnterprise ? 'an' : 'mois'}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-amber-300 block">
+                    ~ {priceXOF.toLocaleString()} FCFA
+                  </span>
+                  {discountPercent > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-400 block line-through opacity-70">
+                      ${basePrice} ({discountPercent}% de remise)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 

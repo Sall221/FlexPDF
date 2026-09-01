@@ -91,179 +91,28 @@ interface AppContextType {
 
 const DEFAULT_FREE_LIMIT = 3;
 
-const INITIAL_DEMO_USERS: UserProfile[] = [
+// Default initial Master Admin account ready for the platform owner
+const INITIAL_SYSTEM_USERS: UserProfile[] = [
   {
-    id: 'user_free_1',
-    name: 'Alex Rivera',
-    email: 'alex@flexpdf.com',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    role: 'user',
-    subscription: {
-      planId: 'free',
-      status: 'active',
-      currentPeriodEnd: '2026-09-29',
-      cancelAtPeriodEnd: false,
-      renewsOn: 'N/A',
-      price: 0,
-      billingInterval: 'free',
-    },
-    createdAt: '2026-08-01',
-    apiKey: 'flex_free_live_839219382103',
-  },
-  {
-    id: 'user_pro_1',
-    name: 'Sarah Chen',
-    email: 'sarah@flexpdf.com',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    role: 'pro',
-    subscription: {
-      planId: 'pro_monthly',
-      status: 'active',
-      currentPeriodEnd: '2026-09-28',
-      cancelAtPeriodEnd: false,
-      renewsOn: '2026-09-28',
-      price: 9,
-      billingInterval: 'month',
-      paymentMethod: 'mobile_money',
-      mobileMoneyOperator: 'orange',
-      mobileMoneyPhone: '+221 77 123 45 67',
-    },
-    createdAt: '2026-07-15',
-    apiKey: 'flex_pro_live_994827481923',
-  },
-  {
-    id: 'admin_flexpdf_01',
+    id: 'admin_flexpdf_master',
     name: 'Administrateur FlexPDF',
     email: 'admin@flexpdf.com',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     role: 'admin',
     subscription: {
       planId: 'enterprise',
       status: 'active',
-      currentPeriodEnd: '2027-08-29',
+      currentPeriodEnd: '2027-12-31',
       cancelAtPeriodEnd: false,
-      renewsOn: '2027-08-29',
+      renewsOn: '2027-12-31',
       price: 99,
       billingInterval: 'year',
       paymentMethod: 'card',
       cardLast4: '4242',
       cardBrand: 'Visa',
     },
-    createdAt: '2026-01-01',
-    apiKey: 'flex_admin_master_001928471928',
-  },
-];
-
-const INITIAL_INVOICES: InvoiceRecord[] = [
-  {
-    id: 'inv_1048',
-    number: 'INV-2026-088',
-    date: '2026-08-28',
-    amount: 9.0,
-    status: 'paid',
-    planName: 'FlexPDF Pro Monthly',
-    downloadUrl: '#',
-    paymentMethod: 'SASPAY MOBILE MONEY (Orange)',
-    transactionId: 'SASP_TX_99281_ORANGE',
-    customerName: 'Sarah Chen',
-    customerEmail: 'sarah@flexpdf.com',
-  },
-  {
-    id: 'inv_1032',
-    number: 'INV-2026-075',
-    date: '2026-07-28',
-    amount: 9.0,
-    status: 'paid',
-    planName: 'FlexPDF Pro Monthly',
-    downloadUrl: '#',
-    paymentMethod: 'SASPAY CARTE (Visa •••• 4242)',
-    transactionId: 'SASP_TX_77182_VISA',
-    customerName: 'Sarah Chen',
-    customerEmail: 'sarah@flexpdf.com',
-  },
-  {
-    id: 'inv_1011',
-    number: 'INV-2026-061',
-    date: '2026-06-28',
-    amount: 79.0,
-    status: 'paid',
-    planName: 'FlexPDF Pro Annuel',
-    downloadUrl: '#',
-    paymentMethod: 'SASPAY MOBILE MONEY (Wave)',
-    transactionId: 'SASP_TX_55190_WAVE',
-    customerName: 'Alex Rivera',
-    customerEmail: 'alex@flexpdf.com',
-  },
-];
-
-const INITIAL_SYSTEM_LOGS: SystemLog[] = [
-  {
-    id: 'log_1',
-    timestamp: '2 mins ago',
-    userId: 'user_pro_1',
-    userEmail: 'sarah@flexpdf.com',
-    toolId: 'merge-pdf',
-    status: 'success',
-    executionTimeMs: 380,
-    inputSizeKB: 4200,
-    outputSizeKB: 4120,
-  },
-  {
-    id: 'log_2',
-    timestamp: '8 mins ago',
-    userId: 'user_free_1',
-    userEmail: 'alex@flexpdf.com',
-    toolId: 'compress-pdf',
-    status: 'success',
-    executionTimeMs: 520,
-    inputSizeKB: 8400,
-    outputSizeKB: 2950,
-  },
-  {
-    id: 'log_3',
-    timestamp: '15 mins ago',
-    userId: 'guest_visitor',
-    userEmail: 'visitor@flexpdf.net',
-    toolId: 'pdf-to-word',
-    status: 'success',
-    executionTimeMs: 780,
-    inputSizeKB: 1850,
-    outputSizeKB: 240,
-  },
-  {
-    id: 'log_4',
-    timestamp: '22 mins ago',
-    userId: 'user_pro_1',
-    userEmail: 'sarah@flexpdf.com',
-    toolId: 'image-converter',
-    status: 'success',
-    executionTimeMs: 290,
-    inputSizeKB: 5600,
-    outputSizeKB: 1800,
-  },
-];
-
-const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
-  {
-    id: 'ticket_1',
-    userName: 'Claire Dupont',
-    userEmail: 'claire.dupont@cabinet-avocats.fr',
-    subject: 'Question sur la compression des PDF juridiques avec signatures',
-    message: 'Bonjour, est-ce que la compression conserve la validité cryptographique des certificats eIDAS sur les fichiers signés ? Merci !',
-    status: 'resolved',
-    category: 'technical',
-    createdAt: '2026-08-30',
-    adminReply: 'Bonjour Claire, oui absolument ! FlexPDF traite les documents 100% côté client et préserve intactes les structures de métadonnées et signatures numériques sans jamais téléverser de fichier sur serveur.',
-  },
-  {
-    id: 'ticket_2',
-    userName: 'Marc Lambert',
-    userEmail: 'marc@startup-scale.io',
-    subject: 'Paiement SasPay Mobile Money Entreprise',
-    message: 'Bonjour l\'équipe FlexPDF, est-ce que nous pouvons payer nos abonnements d\'équipe via SasPay Wave ou Orange Money avec facture d\'entreprise ?',
-    status: 'open',
-    category: 'billing',
-    createdAt: '2026-08-31',
+    createdAt: '2026-09-01',
+    apiKey: 'flex_admin_master_live_key',
   },
 ];
 
@@ -283,17 +132,33 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
-  // Registry 1: flexpdf_users
+  // Registry 1: flexpdf_users (dynamic, cleans out legacy mock users)
   const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('flexpdf_users') || localStorage.getItem('dm_users');
-    return saved ? JSON.parse(saved) : INITIAL_DEMO_USERS;
+    const saved = localStorage.getItem('flexpdf_users');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Filter out legacy dummy users
+        const cleaned = Array.isArray(parsed)
+          ? parsed.filter((u: any) => u.email !== 'alex@flexpdf.com' && u.email !== 'sarah@flexpdf.com')
+          : [];
+        return cleaned.length > 0 ? cleaned : INITIAL_SYSTEM_USERS;
+      } catch (e) {
+        return INITIAL_SYSTEM_USERS;
+      }
+    }
+    return INITIAL_SYSTEM_USERS;
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('flexpdf_active_user') || localStorage.getItem('dm_active_user');
+    const saved = localStorage.getItem('flexpdf_active_user');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed?.email === 'alex@flexpdf.com' || parsed?.email === 'sarah@flexpdf.com') {
+          return null;
+        }
+        return parsed;
       } catch (e) {
         return null;
       }
@@ -306,24 +171,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [legalActiveTab, setLegalActiveTab] = useState<'mentions' | 'cgu' | 'privacy' | 'security'>('cgu');
 
   const [dailyUsageMap, setDailyUsageMap] = useState<Record<string, number>>(() => {
-    const saved = localStorage.getItem('flexpdf_daily_usage') || localStorage.getItem('dm_daily_usage');
+    const saved = localStorage.getItem('flexpdf_daily_usage');
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Registry 2: flexpdf_jobs
+  // Registry 2: flexpdf_jobs (dynamic user conversion history)
   const [history, setHistory] = useState<ProcessedFileRecord[]>(() => {
-    const saved = localStorage.getItem('flexpdf_jobs') || localStorage.getItem('dm_history');
+    const saved = localStorage.getItem('flexpdf_jobs');
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Registry 3: flexpdf_tickets (dynamic support tickets)
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
-    const saved = localStorage.getItem('flexpdf_tickets') || localStorage.getItem('dm_tickets');
-    return saved ? JSON.parse(saved) : INITIAL_SUPPORT_TICKETS;
+    const saved = localStorage.getItem('flexpdf_tickets');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const cleaned = Array.isArray(parsed)
+          ? parsed.filter((t: any) => !t.userEmail?.includes('cabinet-avocats.fr') && !t.userEmail?.includes('startup-scale.io'))
+          : [];
+        return cleaned;
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   });
 
-  // Registry 3: flexpdf_config
+  // Registry 4: flexpdf_config (dynamic settings)
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
-    const saved = localStorage.getItem('flexpdf_config') || localStorage.getItem('dm_settings');
+    const saved = localStorage.getItem('flexpdf_config');
     return saved ? JSON.parse(saved) : INITIAL_SITE_SETTINGS;
   });
 
@@ -334,28 +211,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isStripeCheckoutOpen, setIsStripeCheckoutOpen] = useState(false);
   const [isSasPayCheckoutOpen, setIsSasPayCheckoutOpen] = useState(false);
   const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<SubscriptionPlanId>('pro_annual');
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>(INITIAL_INVOICES);
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(INITIAL_SYSTEM_LOGS);
 
-  const [adminStats, setAdminStats] = useState<AdminStats>({
-    totalConversionsToday: 1540,
-    totalConversionsAllTime: 104820,
-    activeProUsers: 385,
-    totalUsers: 5120,
-    mrr: 3465,
-    arr: 41580,
-    storageSavedMB: 54300,
-    conversionRate: 7.5,
+  // Registry 5: flexpdf_invoices (dynamic invoices generated upon payment)
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
+    const saved = localStorage.getItem('flexpdf_invoices');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const cleaned = Array.isArray(parsed)
+          ? parsed.filter((inv: any) => !inv.customerEmail?.includes('sarah@flexpdf.com') && !inv.customerEmail?.includes('alex@flexpdf.com'))
+          : [];
+        return cleaned;
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Registry 6: flexpdf_logs (dynamic execution logs)
+  const [systemLogs, setSystemLogs] = useState<SystemLog[]>(() => {
+    const saved = localStorage.getItem('flexpdf_logs');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const cleaned = Array.isArray(parsed)
+          ? parsed.filter((l: any) => !l.userEmail?.includes('sarah@flexpdf.com') && !l.userEmail?.includes('alex@flexpdf.com'))
+          : [];
+        return cleaned;
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   });
 
   const todayKey = new Date().toISOString().split('T')[0];
   const userKey = user ? user.id : 'guest_visitor';
-  const dailyUsageCount = dailyUsageMap[`${userKey}_${todayKey}`] || 0;
+  const dailyUsageCount = Number(dailyUsageMap[`${userKey}_${todayKey}`] || 0);
 
   const isUnlimited = user?.role === 'pro' || user?.role === 'admin';
   const dailyLimit = user?.customDailyLimit ?? siteSettings.defaultFreeLimit;
   const remainingDailyQuota = isUnlimited ? 999 : Math.max(0, dailyLimit - dailyUsageCount);
   const hasQuotaRemaining = isUnlimited || remainingDailyQuota > 0;
+
+  // Dynamic live calculation of Admin Stats
+  const activeProCount = allUsers.filter((u) => u.role === 'pro' || u.role === 'admin').length;
+  const computedMrr = allUsers.reduce((sum, u) => {
+    if (u.role === 'pro' || u.role === 'admin') {
+      const interval = u.subscription?.billingInterval;
+      const price = u.subscription?.price || (interval === 'year' ? siteSettings.annualPrice : siteSettings.monthlyPrice);
+      return sum + (interval === 'year' ? price / 12 : price);
+    }
+    return sum;
+  }, 0);
+
+  const totalConversionsToday = Object.entries(dailyUsageMap).reduce((sum, [k, val]) => {
+    if (k.endsWith(todayKey)) return sum + (Number(val) || 0);
+    return sum;
+  }, 0);
+
+  const totalConversionsAllTime = history.length + systemLogs.length;
+  const storageSavedMB = Math.round(
+    systemLogs.reduce((sum, l) => sum + Math.max(0, (l.inputSizeKB - l.outputSizeKB) / 1024), 0) + (history.length * 1.5)
+  );
+
+  const [adminStats, setAdminStats] = useState<AdminStats>({
+    totalConversionsToday,
+    totalConversionsAllTime,
+    activeProUsers: activeProCount,
+    totalUsers: allUsers.length,
+    mrr: Math.round(computedMrr),
+    arr: Math.round(computedMrr * 12),
+    storageSavedMB,
+    conversionRate: allUsers.length > 0 ? Number(((activeProCount / allUsers.length) * 100).toFixed(1)) : 0,
+  });
+
+  // Keep adminStats in sync with live dynamic data
+  useEffect(() => {
+    setAdminStats({
+      totalConversionsToday,
+      totalConversionsAllTime,
+      activeProUsers: activeProCount,
+      totalUsers: allUsers.length,
+      mrr: Math.round(computedMrr),
+      arr: Math.round(computedMrr * 12),
+      storageSavedMB,
+      conversionRate: allUsers.length > 0 ? Number(((activeProCount / allUsers.length) * 100).toFixed(1)) : 0,
+    });
+  }, [allUsers, invoices, history, systemLogs, dailyUsageMap, siteSettings, totalConversionsToday, totalConversionsAllTime, activeProCount, computedMrr, storageSavedMB]);
 
   const [timeUntilReset, setTimeUntilReset] = useState('');
   useEffect(() => {
@@ -401,6 +345,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('flexpdf_config', JSON.stringify(siteSettings));
   }, [siteSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('flexpdf_invoices', JSON.stringify(invoices));
+  }, [invoices]);
+
+  useEffect(() => {
+    localStorage.setItem('flexpdf_logs', JSON.stringify(systemLogs));
+  }, [systemLogs]);
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('flexpdf_active_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('flexpdf_active_user');
+    }
+  }, [user]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -531,10 +491,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const switchDemoUser = (role: 'free' | 'pro' | 'admin') => {
-    const target = INITIAL_DEMO_USERS.find((u) => u.role === (role === 'free' ? 'user' : role));
-    if (target) {
-      setUser(target);
-      addNotification('success', `Profil Actif : ${target.name}`, `Mode ${target.role.toUpperCase()} activé en 1 clic (${target.email}).`);
+    const targetRole = role === 'free' ? 'user' : role;
+    const existing = allUsers.find((u) => u.role === targetRole);
+    if (existing) {
+      setUser(existing);
+      addNotification('success', `Profil Actif : ${existing.name}`, `Connecté en tant que ${existing.name}.`);
+    } else {
+      const dynamicUser: UserProfile = {
+        id: `usr_${Date.now()}`,
+        name: role === 'admin' ? 'Administrateur' : role === 'pro' ? 'Membre Pro' : 'Utilisateur',
+        email: `${targetRole}@flexpdf.app`,
+        avatar: role === 'admin' ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop' : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
+        role: targetRole,
+        subscription: {
+          planId: role === 'pro' ? 'pro_monthly' : role === 'admin' ? 'enterprise' : 'free',
+          status: 'active',
+          currentPeriodEnd: '2026-12-31',
+          cancelAtPeriodEnd: false,
+          renewsOn: '2026-12-31',
+          price: role === 'pro' ? siteSettings.monthlyPrice : role === 'admin' ? siteSettings.annualPrice : 0,
+          billingInterval: role === 'pro' ? 'month' : role === 'admin' ? 'year' : 'free',
+        },
+        createdAt: new Date().toISOString().split('T')[0],
+        apiKey: `flex_live_${Math.random().toString(36).substr(2, 12)}`,
+      };
+      setAllUsers((prev) => [dynamicUser, ...prev]);
+      setUser(dynamicUser);
+      addNotification('success', `Profil Actif : ${dynamicUser.name}`, `Connecté en tant que ${dynamicUser.name}.`);
     }
   };
 

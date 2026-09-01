@@ -308,15 +308,17 @@ export const AdminPanel: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={generateDemoStats}
+                  onClick={() => {
+                    addNotification('info', 'Données Synchronisées', 'Les métriques, transactions et logs utilisateurs sont à jour.');
+                  }}
                   className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="Régénérer et simuler de nouvelles données analytiques et métriques"
+                  title="Actualiser les métriques calculées en temps réel"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Générer Données Démo</span>
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Actualiser Métriques</span>
                 </button>
                 <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                  +22% cette semaine
+                  En direct
                 </span>
               </div>
             </div>

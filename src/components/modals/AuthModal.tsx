@@ -57,61 +57,11 @@ export const AuthModal: React.FC = () => {
           </p>
         </div>
 
-        {/* 1-Click Fast Switch Demo Accounts */}
-        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-              <UserCheck className="w-3.5 h-3.5 text-indigo-600" /> Connexion Rapide Démo
-            </span>
-            <span className="text-[10px] text-slate-400">1 clic pour tester</span>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => {
-                switchDemoUser('free');
-                setIsAuthModalOpen(false);
-              }}
-              className="p-2.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs transition-all text-left group cursor-pointer hover:border-slate-300"
-            >
-              <div className="text-[10px] text-slate-400">Utilisateur</div>
-              <div className="text-slate-800 font-bold group-hover:text-indigo-600">Gratuit</div>
-              <div className="text-[9px] text-slate-400 truncate">3 tâches/jour</div>
-            </button>
-            <button
-              onClick={() => {
-                switchDemoUser('pro');
-                setIsAuthModalOpen(false);
-              }}
-              className="p-2.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-900 shadow-2xs transition-all text-left group cursor-pointer"
-            >
-              <div className="text-[10px] text-amber-600 flex items-center gap-0.5">
-                <Crown className="w-2.5 h-2.5" /> Abonné
-              </div>
-              <div className="font-black text-amber-900 group-hover:text-amber-700">Pro Sub</div>
-              <div className="text-[9px] text-amber-700 truncate">Illimité Stripe</div>
-            </button>
-            <button
-              onClick={() => {
-                switchDemoUser('admin');
-                setIsAuthModalOpen(false);
-              }}
-              className="p-2.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200 text-xs font-semibold text-indigo-900 shadow-2xs transition-all text-left group cursor-pointer"
-            >
-              <div className="text-[10px] text-indigo-600 flex items-center gap-0.5">
-                <ShieldCheck className="w-2.5 h-2.5" /> Propriétaire
-              </div>
-              <div className="font-black text-indigo-900 group-hover:text-indigo-700">Super Admin</div>
-              <div className="text-[9px] text-indigo-600 truncate">Contrôle Total</div>
-            </button>
-          </div>
-        </div>
-
         {/* Free Plan Notice */}
-        <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/80 text-[11px] text-emerald-800 flex items-start gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+        <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 text-[11px] text-indigo-900 flex items-start gap-2.5">
+          <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
           <span>
-            <strong>Bon à savoir :</strong> Vous pouvez utiliser tous les outils sans connexion avec votre quota de 3 conversions offertes chaque jour !
+            <strong>Accès Instantané :</strong> Vous pouvez convertir des documents sans inscription (3 tâches offertes/jour) ou vous connecter pour gérer vos forfaits et factures SasPay.
           </span>
         </div>
 
@@ -209,10 +159,12 @@ export const AuthModal: React.FC = () => {
 
         {/* Social Authentication */}
         <div className="space-y-3">
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-3 text-[10px] text-slate-400 uppercase tracking-wider font-bold">ou continuer avec</span>
-            <div className="flex-grow border-t border-slate-200"></div>
+          <div className="relative flex items-center justify-center py-1">
+            <div className="flex-grow border-t border-slate-200" />
+            <span className="flex-shrink-0 px-3 text-[10px] text-slate-400 uppercase tracking-wider font-bold text-center">
+              Ou continuer avec
+            </span>
+            <div className="flex-grow border-t border-slate-200" />
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">

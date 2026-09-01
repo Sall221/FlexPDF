@@ -3,7 +3,7 @@ import { Mail, Lock, User, ArrowRight, Shield, CheckCircle, Sparkles, AlertCircl
 import { useApp } from '../../context/AppContext';
 
 export const AuthPage: React.FC = () => {
-  const { login, setActiveView, switchDemoUser, addNotification } = useApp();
+  const { login, setActiveView, addNotification } = useApp();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,21 +27,17 @@ export const AuthPage: React.FC = () => {
 
     setIsLoading(true);
     setTimeout(() => {
-      login(email, password);
+      // If logging in with admin email, give admin access
+      const role = email.toLowerCase().includes('admin') ? 'admin' : 'user';
+      login(email, role);
       setIsLoading(false);
       addNotification(
         'success',
         tab === 'login' ? 'Connexion réussie !' : 'Compte créé avec succès !',
         `Bienvenue sur FlexPDF, ${name || email}.`
       );
-      setActiveView('dashboard');
-    }, 600);
-  };
-
-  const handleDemoLogin = (role: 'user' | 'pro' | 'admin') => {
-    switchDemoUser(role);
-    addNotification('info', 'Compte Démo Activé', `Connecté en tant que profil ${role.toUpperCase()}.`);
-    setActiveView(role === 'admin' ? 'admin' : 'dashboard');
+      setActiveView(role === 'admin' ? 'admin' : 'dashboard');
+    }, 400);
   };
 
   return (
@@ -172,17 +168,21 @@ export const AuthPage: React.FC = () => {
 
         {/* Social login buttons */}
         <div className="space-y-3 pt-2">
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 w-full" />
-            <span className="bg-white px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="relative flex items-center justify-center py-1">
+            <div className="flex-grow border-t border-slate-200" />
+            <span className="flex-shrink-0 px-3 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
               Ou continuer avec
             </span>
+            <div className="flex-grow border-t border-slate-200" />
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
-              onClick={() => handleDemoLogin('pro')}
+              onClick={() => {
+                login('user@google.com', 'user');
+                setActiveView('dashboard');
+              }}
               className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -207,41 +207,16 @@ export const AuthPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => handleDemoLogin('pro')}
+              onClick={() => {
+                login('developer@github.com', 'user');
+                setActiveView('dashboard');
+              }}
               className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <svg className="w-4 h-4 fill-current text-slate-900" viewBox="0 0 24 24">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
               </svg>
               <span>GitHub</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Demo Access Bar */}
-        <div className="pt-2 border-t border-slate-100">
-          <p className="text-[11px] font-bold text-slate-500 mb-2">Comptes de test 1-clic :</p>
-          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-bold">
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('user')}
-              className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-            >
-              Gratuit (3/j)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('pro')}
-              className="py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors"
-            >
-              Pro Illimité
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('admin')}
-              className="py-1.5 px-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-colors"
-            >
-              Admin Master
             </button>
           </div>
         </div>

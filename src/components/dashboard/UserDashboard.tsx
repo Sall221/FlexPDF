@@ -52,6 +52,7 @@ export const UserDashboard: React.FC = () => {
     setSelectedToolId,
     updateUserProfile,
     createSupportTicket,
+    siteSettings,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'billing' | 'security' | 'settings' | 'tickets' | 'api'>('overview');
@@ -523,12 +524,38 @@ export const UserDashboard: React.FC = () => {
             {/* Subscription Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               {!isUnlimited ? (
-                <button
-                  onClick={() => openStripeCheckout('pro_annual')}
-                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
-                >
-                  Passer au Forfait Pro ($79/an ou $9/mois)
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => openStripeCheckout('pro_monthly')}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Activer Pro Mensuel (${siteSettings.monthlyPrice || 9}/mois)
+                  </button>
+                  <button
+                    onClick={() => openStripeCheckout('pro_annual')}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Crown className="w-3.5 h-3.5" />
+                    <span>Activer Pro Annuel (${siteSettings.annualPrice || 79}/an • Économisez {Math.round((((siteSettings.monthlyPrice || 9) * 12 - (siteSettings.annualPrice || 79)) / ((siteSettings.monthlyPrice || 9) * 12)) * 100)}%)</span>
+                  </button>
+                </div>
+              ) : user?.subscription.billingInterval === 'month' && !user?.subscription.cancelAtPeriodEnd ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => openStripeCheckout('pro_annual')}
+                    className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Crown className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Basculer vers Pro Annuel (${siteSettings.annualPrice || 79}/an - Économisez 27%)</span>
+                  </button>
+                  <button
+                    onClick={cancelSubscription}
+                    className="text-xs text-rose-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Annuler le Renouvellement Automatique</span>
+                  </button>
+                </div>
               ) : user?.subscription.cancelAtPeriodEnd ? (
                 <button
                   onClick={reactivateSubscription}

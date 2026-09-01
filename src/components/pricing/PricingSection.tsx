@@ -3,14 +3,20 @@ import { Check, Crown, Zap, Shield, Sparkles, HelpCircle, ChevronDown, ChevronUp
 import { useApp } from '../../context/AppContext';
 
 export const PricingSection: React.FC = () => {
-  const { user, isUnlimited, openStripeCheckout } = useApp();
+  const { user, isUnlimited, openStripeCheckout, siteSettings } = useApp();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
+  const monthlyPrice = siteSettings.monthlyPrice || 9;
+  const annualPrice = siteSettings.annualPrice || 79;
+  const freeLimit = siteSettings.defaultFreeLimit || 3;
+  const annualMonthlyEquivalent = (annualPrice / 12).toFixed(2);
+  const discountSavings = Math.round(((monthlyPrice * 12 - annualPrice) / (monthlyPrice * 12)) * 100);
+
   const faqs = [
     {
-      q: 'Comment fonctionne la limite gratuite de 3 tâches par jour ?',
-      a: 'Chaque visiteur et utilisateur du plan gratuit peut exécuter jusqu\'à 3 conversions complètes par 24h sans débourser un centime et sans même avoir besoin de créer un compte. Le compteur se réinitialise chaque jour automatiquement à minuit.',
+      q: `Comment fonctionne la limite gratuite de ${freeLimit} tâches par jour ?`,
+      a: `Chaque visiteur et utilisateur du plan gratuit peut exécuter jusqu'à ${freeLimit} conversions complètes par 24h sans débourser un centime et sans même avoir besoin de créer un compte. Le compteur se réinitialise chaque jour automatiquement à minuit.`,
     },
     {
       q: 'Que débloque l\'abonnement FlexPDF Pro ?',
@@ -63,7 +69,7 @@ export const PricingSection: React.FC = () => {
               Facturation Annuelle
             </span>
             <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-black">
-              Économisez 27%
+              Économisez {discountSavings}%
             </span>
           </div>
         </div>
@@ -90,7 +96,7 @@ export const PricingSection: React.FC = () => {
             <ul className="space-y-3 text-xs text-slate-600 pt-4 border-t border-slate-100">
               <li className="flex items-center gap-2.5">
                 <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span><strong className="text-slate-900">3 Tâches Gratuites / Jour</strong></span>
+                <span><strong className="text-slate-900">{freeLimit} Tâches Gratuites / Jour</strong></span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -140,10 +146,10 @@ export const PricingSection: React.FC = () => {
 
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-slate-900">
-                ${billingCycle === 'annual' ? '79' : '9'}
+                ${billingCycle === 'annual' ? annualPrice : monthlyPrice}
               </span>
               <span className="text-xs text-slate-500 font-semibold">
-                / {billingCycle === 'annual' ? 'an ($6.58/mois)' : 'mois'}
+                / {billingCycle === 'annual' ? `an ($${annualMonthlyEquivalent}/mois)` : 'mois'}
               </span>
             </div>
 

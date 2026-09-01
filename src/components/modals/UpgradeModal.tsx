@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { SubscriptionPlanId } from '../../types';
 
 export const UpgradeModal: React.FC = () => {
-  const { isUpgradeModalOpen, setIsUpgradeModalOpen, upgradeSubscription, addNotification } = useApp();
+  const { isUpgradeModalOpen, setIsUpgradeModalOpen, openStripeCheckout, siteSettings, addNotification } = useApp();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
   const [promoCode, setPromoCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -12,7 +12,12 @@ export const UpgradeModal: React.FC = () => {
 
   if (!isUpgradeModalOpen) return null;
 
-  const basePrice = billingCycle === 'annual' ? 79 : 9;
+  const monthlyPrice = siteSettings.monthlyPrice || 9;
+  const annualPrice = siteSettings.annualPrice || 79;
+  const discountSavings = Math.round(((monthlyPrice * 12 - annualPrice) / (monthlyPrice * 12)) * 100);
+  const annualMonthlyEquivalent = (annualPrice / 12).toFixed(2);
+
+  const basePrice = billingCycle === 'annual' ? annualPrice : monthlyPrice;
   const finalPrice = discountPercent > 0 ? (basePrice * (1 - discountPercent / 100)).toFixed(2) : basePrice;
 
   const handleApplyPromo = (e: React.FormEvent) => {
@@ -20,52 +25,57 @@ export const UpgradeModal: React.FC = () => {
     setIsApplyingPromo(true);
     setTimeout(() => {
       setIsApplyingPromo(false);
-      if (promoCode.trim().toUpperCase() === 'LAUNCH50' || promoCode.trim().toUpperCase() === 'PRO50') {
+      const clean = promoCode.trim().toUpperCase();
+      if (clean === 'LAUNCH50' || clean === 'PRO50') {
         setDiscountPercent(50);
-        addNotification('success', 'Promo Code Applied! 🎁', '50% lifetime discount applied to your order.');
+        addNotification('success', 'Code Promo Appliqué ! 🎁', '50% de réduction appliqués immédiatement.');
+      } else if (clean === 'WELCOME20') {
+        setDiscountPercent(20);
+        addNotification('success', 'Code Promo Appliqué ! 🎁', '20% de réduction appliqués.');
       } else {
-        addNotification('error', 'Invalid Code', 'Try code "LAUNCH50" for 50% off.');
+        addNotification('error', 'Code Invalide', 'Essayez le code "LAUNCH50" pour 50% de réduction.');
       }
-    }, 400);
+    }, 300);
   };
 
   const handleCheckout = (planId: SubscriptionPlanId) => {
-    upgradeSubscription(planId);
+    setIsUpgradeModalOpen(false);
+    openStripeCheckout(planId);
   };
 
   const proFeatures = [
-    'Unlimited conversions & batch tasks per day',
-    'Up to 500 MB per file (vs 10 MB on Free)',
-    'Process up to 50 files simultaneously in one click',
-    'Optical Character Recognition (OCR) & Text extraction',
-    'Highest hardware queue priority with zero latency',
-    'No file expiration (Cloud sync & 30-day backups)',
-    'Full access to all PDF and Image conversion tools',
-    'Commercial usage license & priority customer support',
+    'Conversions et traitements par lot illimités chaque jour',
+    'Jusqu\'à 500 Mo par fichier (contre 10 Mo en gratuit)',
+    'Traitement simultané jusqu\'à 50 fichiers en 1 clic',
+    'Reconnaissance optique de caractères (OCR) & PDF vers Word éditable',
+    'File d\'attente ultra-prioritaire sans latence',
+    'Sauvegarde cloud sécurisée & historique de téléchargement',
+    'Accès intégral à tous les outils PDF & Image actuels et futurs',
+    'Paiement sécurisé SasPay (Wave, Orange, MTN, Moov & CB)',
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="relative w-full max-w-2xl p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-2xl space-y-6 my-8 animate-in zoom-in-95 duration-150">
         {/* Close Button */}
         <button
           onClick={() => setIsUpgradeModalOpen(false)}
-          className="absolute right-5 top-5 p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+          className="absolute right-5 top-5 p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shadow-2xs">
             <Crown className="w-3.5 h-3.5 text-amber-600" />
-            <span>FlexPDF Pro Subscription</span>
+            <span>Abonnement FlexPDF Pro</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-            Unlock Unlimited High-Speed Processing
+            Débloquez la Puissance Illimitée & l'OCR
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-            Remove the 3 tasks/day free limit, unlock 500MB batch file sizes, and experience lightning-fast conversions.
+            Supprimez la limite quotidienne de {siteSettings.defaultFreeLimit || 3} tâches, convertissez des fichiers jusqu'à 500 Mo et traitez par lot en toute sérénité.
           </p>
         </div>
 
@@ -80,7 +90,7 @@ export const UpgradeModal: React.FC = () => {
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            Monthly ($9/mo)
+            Mensuel (${monthlyPrice}/m)
           </button>
           <button
             type="button"
@@ -91,9 +101,9 @@ export const UpgradeModal: React.FC = () => {
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            <span>Annual ($79/yr)</span>
+            <span>Annuel (${annualPrice}/an)</span>
             <span className="absolute -top-2.5 -right-2 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold shadow-xs">
-              -27%
+              -{discountSavings}%
             </span>
           </button>
         </div>
@@ -104,16 +114,16 @@ export const UpgradeModal: React.FC = () => {
             <div className="flex items-baseline gap-2">
               <span className="text-3xl sm:text-4xl font-black text-slate-900">${finalPrice}</span>
               <span className="text-xs text-slate-500 font-semibold">
-                / {billingCycle === 'annual' ? 'year' : 'month'}
+                / {billingCycle === 'annual' ? 'an' : 'mois'}
               </span>
               {discountPercent > 0 && (
                 <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  50% OFF Applied
+                  -{discountPercent}% appliqué
                 </span>
               )}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {billingCycle === 'annual' ? 'Billed annually ($6.58/mo equivalent)' : 'Billed monthly. Cancel anytime.'}
+              {billingCycle === 'annual' ? `Facturation annuelle ($${annualMonthlyEquivalent}/mois équivalent)` : 'Facturation mensuelle sans engagement. Annulation en 1 clic.'}
             </p>
           </div>
 
@@ -122,7 +132,7 @@ export const UpgradeModal: React.FC = () => {
             className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all hover:scale-105 flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
             <CreditCard className="w-4 h-4" />
-            <span>Instant Upgrade Now</span>
+            <span>Payer avec SasPay</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
