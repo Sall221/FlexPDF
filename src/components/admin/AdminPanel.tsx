@@ -52,7 +52,7 @@ export const AdminPanel: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'tickets' | 'logs' | 'config' | 'saspay'>('overview');
   const [userSearch, setUserSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'pro' | 'admin'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'pro' | 'enterprise' | 'admin'>('all');
 
   // SasPay Admin Gateway State
   const [gatewayConfig, setGatewayConfig] = useState<SasPayGatewayConfig | null>(null);
@@ -428,8 +428,8 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             {/* Filter Pills */}
-            <div className="flex gap-1 text-xs">
-              {(['all', 'user', 'pro', 'admin'] as const).map((r) => (
+            <div className="flex flex-wrap gap-1 text-xs">
+              {(['all', 'user', 'pro', 'enterprise', 'admin'] as const).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRoleFilter(r)}
@@ -439,7 +439,7 @@ export const AdminPanel: React.FC = () => {
                       : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {r === 'all' ? 'Tous' : r === 'user' ? 'Gratuit' : r}
+                  {r === 'all' ? 'Tous' : r === 'user' ? 'Gratuit' : r === 'enterprise' ? 'Entreprise' : r === 'pro' ? 'Pro' : 'Admin'}
                 </button>
               ))}
             </div>
@@ -477,6 +477,7 @@ export const AdminPanel: React.FC = () => {
                         >
                           <option value="user">Utilisateur Gratuit</option>
                           <option value="pro">Abonné Pro</option>
+                          <option value="enterprise">Abonné Entreprise</option>
                           <option value="admin">Super Admin</option>
                         </select>
                       </td>
@@ -848,7 +849,7 @@ export const AdminPanel: React.FC = () => {
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                 <span className="text-[10px] text-slate-500 uppercase font-mono">Clé API Serveur (Live)</span>
                 <p className="font-bold text-indigo-300 font-mono text-[11px] truncate">
-                  {gatewayConfig?.activeKeyMasked || 'sk_live_rsJKSBa..._Bw'}
+                  {gatewayConfig?.activeKeyMasked || 'sk_live_••••••••••••'}
                 </p>
               </div>
 

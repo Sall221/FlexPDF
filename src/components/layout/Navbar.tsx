@@ -306,7 +306,7 @@ export const Navbar: React.FC = () => {
                 {isUnlimited ? (
                   <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shadow-2xs">
                     <Crown className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Forfait Pro</span>
+                    <span>{user.role === 'enterprise' ? 'Forfait Entreprise' : user.role === 'admin' ? 'Admin' : 'Forfait Pro'}</span>
                   </div>
                 ) : (
                   <div

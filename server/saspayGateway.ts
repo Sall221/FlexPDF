@@ -89,7 +89,7 @@ function getSasPayKey(): string {
   return (
     process.env.SASPAY_SECRET_KEY ||
     process.env.SASPAY_API_KEY ||
-    'sk_live_rsJKSBa2k5xSaAPAgPUcWgP6qQ57UjQIa-MaUerR_Bw'
+    ''
   ).trim();
 }
 
@@ -97,7 +97,7 @@ function getSasPayKey(): string {
 function getSasPayWebhookSecret(): string {
   return (
     process.env.SASPAY_WEBHOOK_SECRET ||
-    'f06597ad0d923c684884be35a662096642fd6cefdce80d4d22e05dfe772be36b'
+    ''
   ).trim();
 }
 

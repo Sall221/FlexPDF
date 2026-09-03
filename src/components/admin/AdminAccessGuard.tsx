@@ -6,12 +6,12 @@ export const AdminAccessGuard: React.FC = () => {
   const { setActiveView, login, addNotification, user } = useApp();
 
   const handleLoginAsAdmin = () => {
-    login('fadalsall1997@gmail.com', 'admin');
+    login('admin@flexpdf.com', 'admin');
     setActiveView('admin');
     addNotification(
       'success',
-      'Accès Super Admin Déverrouillé 🛡️',
-      'Bienvenue dans la console de gestion globale FlexPDF, Fadal Sall.'
+      'Accès Administrateur Déverrouillé 🛡️',
+      'Bienvenue dans le Panneau d\'administration FlexPDF.'
     );
   };
 
@@ -24,21 +24,25 @@ export const AdminAccessGuard: React.FC = () => {
       <div className="space-y-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 font-bold text-xs border border-rose-200">
           <Lock className="w-3 h-3" />
-          <span>GARDE D'ACCÈS SUPER ADMIN ACTIF</span>
+          <span>GARDE D'ACCÈS ADMINISTRATIF ACTIF</span>
         </div>
         <h2 className="text-2xl font-black text-slate-900">
-          Accès Réservé au Super Administrateur
+          Accès Réservé à l'Administrateur
         </h2>
         <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-          Le panneau d'administration est strictement réservé au compte super-administrateur{' '}
-          <strong className="text-slate-900 font-mono">fadalsall1997@gmail.com</strong>. Toute tentative
-          d'accès non autorisé par saisie directe d'URL est bloquée et consignée dans le registre de sécurité.
+          Le Panneau d'administration est strictement réservé au compte désigné{' '}
+          <strong className="text-slate-900 font-mono">admin@flexpdf.com</strong> (ou super-administrateur). 
+          Toute tentative d'accès non autorisé par saisie directe d'URL est bloquée et consignée.
         </p>
       </div>
 
-      {user && (
+      {user ? (
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
           Compte actuellement connecté : <span className="font-bold text-slate-900">{user.email}</span> (Rôle : {user.role})
+        </div>
+      ) : (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          Aucun utilisateur connecté. Veuillez vous authentifier avec le compte administrateur.
         </div>
       )}
 
@@ -56,7 +60,7 @@ export const AdminAccessGuard: React.FC = () => {
           className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
         >
           <KeyRound className="w-4 h-4 text-amber-400" />
-          <span>Connexion Super Admin</span>
+          <span>Connexion Admin (admin@flexpdf.com)</span>
         </button>
       </div>
     </div>

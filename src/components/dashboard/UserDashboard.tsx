@@ -219,17 +219,19 @@ export const UserDashboard: React.FC = () => {
               </h1>
               <span
                 className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                  user?.role === 'pro'
+                  user?.role === 'enterprise'
+                    ? 'bg-purple-50 text-purple-900 border-purple-200'
+                    : user?.role === 'pro'
                     ? 'bg-amber-50 text-amber-900 border-amber-200'
                     : user?.role === 'admin'
                     ? 'bg-indigo-50 text-indigo-900 border-indigo-200'
                     : 'bg-slate-100 text-slate-700 border-slate-200'
                 }`}
               >
-                Forfait {user?.role || 'Gratuit'}
+                Forfait {user?.role === 'enterprise' ? 'Entreprise' : user?.role === 'pro' ? 'Pro' : user?.role === 'admin' ? 'Admin' : 'Gratuit'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{user?.email || 'non-connecte@documorph.com'}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{user?.email || 'non-connecte@flexpdf.com'}</p>
             <p className="text-[11px] text-slate-400 mt-1">
               Membre depuis le {user?.createdAt || '2026-08-01'} • ID: {user?.id}
             </p>

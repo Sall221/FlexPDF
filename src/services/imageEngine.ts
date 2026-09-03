@@ -202,7 +202,7 @@ export async function convertPdfToImages(
       // Security / Footer note
       ctx.fillStyle = '#94A3B8';
       ctx.font = '14px sans-serif';
-      ctx.fillText(`Rendered by DocuMorph High-Resolution PDF Rasterizer`, 50, canvas.height - 40);
+      ctx.fillText(`Rendered by FlexPDF High-Resolution PDF Rasterizer`, 50, canvas.height - 40);
     }
 
     const blob = await new Promise<Blob>((resolve) => {

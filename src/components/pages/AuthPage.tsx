@@ -219,6 +219,55 @@ export const AuthPage: React.FC = () => {
               <span>GitHub</span>
             </button>
           </div>
+          <div className="pt-2">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                🧪 Profils de Test Rapide :
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    login('admin@flexpdf.com', 'admin');
+                    setActiveView('admin');
+                  }}
+                  className="py-1.5 px-2.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold text-[11px] text-left transition-colors cursor-pointer"
+                >
+                  🛡️ Admin (admin@flexpdf.com)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    login('pro@flexpdf.com', 'pro');
+                    setActiveView('dashboard');
+                  }}
+                  className="py-1.5 px-2.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[11px] text-left transition-colors cursor-pointer"
+                >
+                  👑 Utilisateur Pro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    login('entreprise@flexpdf.com', 'enterprise');
+                    setActiveView('dashboard');
+                  }}
+                  className="py-1.5 px-2.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold text-[11px] text-left transition-colors cursor-pointer"
+                >
+                  🏢 Utilisateur Entreprise
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    login('gratuit@flexpdf.com', 'user');
+                    setActiveView('dashboard');
+                  }}
+                  className="py-1.5 px-2.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-[11px] text-left transition-colors cursor-pointer"
+                >
+                  🌱 Utilisateur Gratuit
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

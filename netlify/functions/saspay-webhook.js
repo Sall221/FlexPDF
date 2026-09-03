@@ -14,7 +14,7 @@ exports.handler = async function (event, context) {
   try {
     const payload = JSON.parse(event.body || '{}');
     const signature = event.headers['x-saspay-signature'] || event.headers['x-signature'] || event.headers['authorization'];
-    const webhookSecret = process.env.SASPAY_WEBHOOK_SECRET || 'f06597ad0d923c684884be35a662096642fd6cefdce80d4d22e05dfe772be36b';
+    const webhookSecret = process.env.SASPAY_WEBHOOK_SECRET || '';
 
     // 1. Signature Verification (if secret configured and header present)
     if (signature && webhookSecret) {

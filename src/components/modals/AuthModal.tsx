@@ -19,13 +19,15 @@ export const AuthModal: React.FC = () => {
       login(email.trim(), 'user');
       addNotification('success', 'Compte Créé avec Succès !', `Bienvenue ${name || email} sur FlexPDF.`);
     } else {
-      // Check if email matches admin
-      if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('fadalsall')) {
-        login(email.trim(), 'admin');
-      } else if (email.toLowerCase().includes('pro') || email.toLowerCase().includes('chen')) {
-        login(email.trim(), 'pro');
+      const clean = email.toLowerCase().trim();
+      if (clean === 'admin@flexpdf.com' || clean.includes('admin') || clean.includes('fadalsall')) {
+        login(clean, 'admin');
+      } else if (clean.includes('entreprise') || clean.includes('enterprise')) {
+        login(clean, 'enterprise');
+      } else if (clean.includes('pro')) {
+        login(clean, 'pro');
       } else {
-        login(email.trim(), 'user');
+        login(clean, 'user');
       }
     }
   };

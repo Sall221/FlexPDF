@@ -43,7 +43,7 @@ export interface UserProfile {
   name: string;
   email: string;
   avatar: string;
-  role: 'user' | 'pro' | 'admin';
+  role: 'user' | 'pro' | 'enterprise' | 'admin';
   subscription: UserSubscription;
   createdAt: string;
   apiKey?: string;
