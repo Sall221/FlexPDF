@@ -1,17 +1,17 @@
 import React from 'react';
-import { ShieldAlert, Lock, ArrowLeft, KeyRound, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, Lock, ArrowLeft, KeyRound } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const AdminAccessGuard: React.FC = () => {
   const { setActiveView, login, addNotification, user } = useApp();
 
   const handleLoginAsAdmin = () => {
-    login('admin@flexpdf.com', 'admin');
+    login('fadalsall1997@gmail.com', 'admin');
     setActiveView('admin');
     addNotification(
       'success',
-      'Accès Administrateur Déverrouillé 🛡️',
-      'Bienvenue dans la console de gestion globale FlexPDF.'
+      'Accès Super Admin Déverrouillé 🛡️',
+      'Bienvenue dans la console de gestion globale FlexPDF, Fadal Sall.'
     );
   };
 
@@ -24,14 +24,14 @@ export const AdminAccessGuard: React.FC = () => {
       <div className="space-y-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 font-bold text-xs border border-rose-200">
           <Lock className="w-3 h-3" />
-          <span>GARDE D'ACCÈS ADMINISTRATIF ACTIF</span>
+          <span>GARDE D'ACCÈS SUPER ADMIN ACTIF</span>
         </div>
         <h2 className="text-2xl font-black text-slate-900">
-          Accès Réservé aux Administrateurs
+          Accès Réservé au Super Administrateur
         </h2>
         <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
           Le panneau d'administration est strictement réservé au compte super-administrateur{' '}
-          <strong className="text-slate-900 font-mono">admin@flexpdf.com</strong>. Toute tentative
+          <strong className="text-slate-900 font-mono">fadalsall1997@gmail.com</strong>. Toute tentative
           d'accès non autorisé par saisie directe d'URL est bloquée et consignée dans le registre de sécurité.
         </p>
       </div>
@@ -56,9 +56,10 @@ export const AdminAccessGuard: React.FC = () => {
           className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
         >
           <KeyRound className="w-4 h-4 text-amber-400" />
-          <span>Connexion admin@flexpdf.com</span>
+          <span>Connexion Super Admin</span>
         </button>
       </div>
     </div>
   );
 };
+

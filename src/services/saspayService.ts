@@ -36,6 +36,8 @@ export interface SasPayInitiateResponse {
   amountXOF: number;
   paymentMethod: string;
   operator?: string;
+  payment_url?: string | null;
+  checkoutUrl?: string | null;
   qrCodeUrl?: string;
   ussdCode?: string;
   otpRequired?: boolean;
@@ -44,6 +46,7 @@ export interface SasPayInitiateResponse {
   createdAt: string;
   message?: string;
   error?: string;
+  data?: any;
 }
 
 export interface SasPayStatusResponse {
@@ -73,6 +76,7 @@ export interface SasPayVerifyResponse {
   currency: string;
   amountXOF: number;
   completedAt: string;
+  payment_url?: string | null;
   paymentDetails?: {
     method: string;
     operator?: string;
@@ -89,6 +93,8 @@ export interface SasPayGatewayConfig {
   version: string;
   environment: 'sandbox' | 'live';
   isLiveConfigured: boolean;
+  keyType?: 'test' | 'live' | 'none';
+  activeKeyMasked?: string | null;
   merchantId: string;
   supportedCurrencies: string[];
   supportedOperators: Array<{ id: string; name: string; countries: string[]; flow: string }>;
@@ -272,7 +278,10 @@ class SasPayService {
     onStepChange('Validation de la compensation finale par SasPay...');
     const verifyResult = await this.verifyPayment(initResult.transactionId);
 
-    return verifyResult;
+    return {
+      ...verifyResult,
+      payment_url: initResult.payment_url || null,
+    };
   }
 
   /**

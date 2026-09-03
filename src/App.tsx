@@ -18,11 +18,24 @@ import { MaintenancePage } from './components/pages/MaintenancePage';
 import { AuthModal } from './components/modals/AuthModal';
 import { ForgotPasswordModal } from './components/modals/ForgotPasswordModal';
 import { UpgradeModal } from './components/modals/UpgradeModal';
+import { SasPayModal } from './components/modals/SasPayModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { TOOLS_DATA } from './data/toolsData';
 
 const MainContent: React.FC = () => {
-  const { activeView, setActiveView, selectedToolId, setSelectedToolId, siteSettings, user } = useApp();
+  const {
+    activeView,
+    setActiveView,
+    selectedToolId,
+    setSelectedToolId,
+    siteSettings,
+    user,
+    isSasPayCheckoutOpen,
+    isStripeCheckoutOpen,
+    setIsSasPayCheckoutOpen,
+    setIsStripeCheckoutOpen,
+    selectedCheckoutPlan,
+  } = useApp();
 
   const currentTool = TOOLS_DATA.find((t) => t.id === selectedToolId) || TOOLS_DATA[0];
 
@@ -82,6 +95,14 @@ const MainContent: React.FC = () => {
       <AuthModal />
       <ForgotPasswordModal />
       <UpgradeModal />
+      <SasPayModal
+        isOpen={isSasPayCheckoutOpen || isStripeCheckoutOpen}
+        onClose={() => {
+          setIsSasPayCheckoutOpen(false);
+          setIsStripeCheckoutOpen(false);
+        }}
+        selectedPlanId={selectedCheckoutPlan}
+      />
       <ToastContainer />
     </div>
   );

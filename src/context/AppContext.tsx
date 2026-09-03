@@ -46,8 +46,14 @@ interface AppContextType {
       customerName?: string;
       customerEmail?: string;
       discountPercent?: number;
+      company?: string;
+      phone?: string;
+      emailVerified?: boolean;
+      hasPassword?: boolean;
+      keepModalOpen?: boolean;
     }
   ) => void;
+  setUserPassword: (password: string) => void;
   reactivateSubscription: () => void;
   exportUserData: () => void;
   deleteAccount: () => void;
@@ -91,30 +97,53 @@ interface AppContextType {
 
 const DEFAULT_FREE_LIMIT = 3;
 
-// Default initial Master Admin account ready for the platform owner
+const SUPER_ADMIN_EMAIL = 'fadalsall1997@gmail.com';
+
+// Default initial Super Admin account for Fadal Sall
 const INITIAL_SYSTEM_USERS: UserProfile[] = [
   {
-    id: 'admin_flexpdf_master',
-    name: 'Administrateur FlexPDF',
-    email: 'admin@flexpdf.com',
+    id: 'super_admin_fadalsall',
+    name: 'Fadal Sall',
+    email: SUPER_ADMIN_EMAIL,
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     role: 'admin',
     subscription: {
       planId: 'enterprise',
       status: 'active',
-      currentPeriodEnd: '2027-12-31',
+      currentPeriodEnd: '2029-12-31',
       cancelAtPeriodEnd: false,
-      renewsOn: '2027-12-31',
+      renewsOn: '2029-12-31',
       price: 99,
       billingInterval: 'year',
       paymentMethod: 'card',
       cardLast4: '4242',
       cardBrand: 'Visa',
+      transactionId: 'SASP_MASTER_ADMIN_INIT',
     },
     createdAt: '2026-09-01',
-    apiKey: 'flex_admin_master_live_key',
+    apiKey: 'flex_admin_master_fadalsall_live_key',
+    lastLogin: '2026-09-01',
   },
 ];
+
+// Clean legacy mock test users and test jobs from local storage
+if (typeof window !== 'undefined') {
+  try {
+    const isCleaned = localStorage.getItem('flexpdf_v4_clean_users');
+    if (!isCleaned) {
+      localStorage.removeItem('flexpdf_jobs');
+      localStorage.removeItem('flexpdf_invoices');
+      localStorage.removeItem('flexpdf_tickets');
+      localStorage.removeItem('flexpdf_logs');
+      localStorage.removeItem('flexpdf_daily_usage');
+      localStorage.setItem('flexpdf_users', JSON.stringify(INITIAL_SYSTEM_USERS));
+      localStorage.setItem('flexpdf_active_user', JSON.stringify(INITIAL_SYSTEM_USERS[0]));
+      localStorage.setItem('flexpdf_v4_clean_users', 'true');
+    }
+  } catch (e) {
+    // Ignore in SSR
+  }
+}
 
 const INITIAL_SITE_SETTINGS: SiteSettings = {
   siteName: 'FlexPDF SaaS Platform',
@@ -132,7 +161,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
-  // Registry 1: flexpdf_users (dynamic, cleans out legacy mock users)
+  // Registry 1: flexpdf_users (dynamic, only contains real accounts)
   const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
     const saved = localStorage.getItem('flexpdf_users');
     if (saved) {
@@ -140,9 +169,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         // Filter out legacy dummy users
         const cleaned = Array.isArray(parsed)
-          ? parsed.filter((u: any) => u.email !== 'alex@flexpdf.com' && u.email !== 'sarah@flexpdf.com')
+          ? parsed.filter((u: any) => 
+              u.email !== 'alex@flexpdf.com' && 
+              u.email !== 'sarah@flexpdf.com' && 
+              u.email !== 'admin@flexpdf.com' &&
+              u.email !== 'free@flexpdf.app' &&
+              u.email !== 'pro@flexpdf.app' &&
+              u.email !== 'admin@flexpdf.app'
+            )
           : [];
-        return cleaned.length > 0 ? cleaned : INITIAL_SYSTEM_USERS;
+        
+        // Ensure Fadal Sall is present as Super Admin
+        const hasSuperAdmin = cleaned.some((u) => u.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
+        if (!hasSuperAdmin) {
+          cleaned.unshift(INITIAL_SYSTEM_USERS[0]);
+        }
+        return cleaned;
       } catch (e) {
         return INITIAL_SYSTEM_USERS;
       }
@@ -155,15 +197,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed?.email === 'alex@flexpdf.com' || parsed?.email === 'sarah@flexpdf.com') {
-          return null;
+        if (
+          parsed?.email === 'alex@flexpdf.com' ||
+          parsed?.email === 'sarah@flexpdf.com' ||
+          parsed?.email === 'admin@flexpdf.com' ||
+          parsed?.email === 'free@flexpdf.app' ||
+          parsed?.email === 'pro@flexpdf.app' ||
+          parsed?.email === 'admin@flexpdf.app'
+        ) {
+          return INITIAL_SYSTEM_USERS[0];
         }
         return parsed;
       } catch (e) {
-        return null;
+        return INITIAL_SYSTEM_USERS[0];
       }
     }
-    return null;
+    return INITIAL_SYSTEM_USERS[0];
   });
 
   const [activeView, setActiveView] = useState<ActiveView>('home');
@@ -175,10 +224,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Registry 2: flexpdf_jobs (dynamic user conversion history)
-  const [history, setHistory] = useState<ProcessedFileRecord[]>(() => {
+  // Registry 2: flexpdf_jobs (all user conversion history)
+  const [allHistoryRecords, setAllHistoryRecords] = useState<ProcessedFileRecord[]>(() => {
     const saved = localStorage.getItem('flexpdf_jobs');
     return saved ? JSON.parse(saved) : [];
+  });
+
+  // Strict Per-User History isolation: users only see their own files
+  const history = allHistoryRecords.filter((rec) => {
+    if (user) {
+      return rec.userId === user.id;
+    }
+    return !rec.userId || rec.userId === 'guest';
   });
 
   // Registry 3: flexpdf_tickets (dynamic support tickets)
@@ -271,9 +328,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return sum;
   }, 0);
 
-  const totalConversionsAllTime = history.length + systemLogs.length;
+  const totalConversionsAllTime = allHistoryRecords.length + systemLogs.length;
   const storageSavedMB = Math.round(
-    systemLogs.reduce((sum, l) => sum + Math.max(0, (l.inputSizeKB - l.outputSizeKB) / 1024), 0) + (history.length * 1.5)
+    systemLogs.reduce((sum, l) => sum + Math.max(0, (l.inputSizeKB - l.outputSizeKB) / 1024), 0) + (allHistoryRecords.length * 1.5)
   );
 
   const [adminStats, setAdminStats] = useState<AdminStats>({
@@ -299,7 +356,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storageSavedMB,
       conversionRate: allUsers.length > 0 ? Number(((activeProCount / allUsers.length) * 100).toFixed(1)) : 0,
     });
-  }, [allUsers, invoices, history, systemLogs, dailyUsageMap, siteSettings, totalConversionsToday, totalConversionsAllTime, activeProCount, computedMrr, storageSavedMB]);
+  }, [allUsers, invoices, allHistoryRecords, systemLogs, dailyUsageMap, siteSettings, totalConversionsToday, totalConversionsAllTime, activeProCount, computedMrr, storageSavedMB]);
 
   const [timeUntilReset, setTimeUntilReset] = useState('');
   useEffect(() => {
@@ -317,6 +374,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, []);
 
+  // Handle return redirect from SasPay (e.g. /payment/success or ?payment=success)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isPaymentSuccess = 
+        urlParams.get('payment') === 'success' || 
+        urlParams.get('status') === 'completed' || 
+        urlParams.get('status') === 'success' ||
+        window.location.pathname.includes('/payment/success');
+
+      if (isPaymentSuccess) {
+        const ref = urlParams.get('reference') || urlParams.get('ref') || `SASP_RET_${Date.now()}`;
+        const plan = (urlParams.get('plan') as SubscriptionPlanId) || 'pro_monthly';
+        const email = urlParams.get('email') || user?.email || 'client@flexpdf.com';
+
+        // 1. Upgrade user
+        upgradeSubscription(plan, {
+          paymentMethod: 'mobile_money',
+          customerEmail: email,
+          emailVerified: true,
+          hasPassword: false,
+          keepModalOpen: false,
+        });
+
+        // 2. Notify
+        addNotification(
+          'success',
+          'Paiement SasPay Confirmé ! 🎉',
+          'Votre abonnement FlexPDF Pro est activé. Bienvenue !'
+        );
+
+        // 3. Clean query params from URL
+        const cleanUrl = window.location.pathname.replace(/\/payment\/success\/?/, '/') || '/';
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      console.warn('[SasPay Return Redirect Handler]', e);
+    }
+  }, []);
+
   // Save to FlexPDF persistent LocalStorage registers
   useEffect(() => {
     if (user) {
@@ -331,8 +429,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [dailyUsageMap]);
 
   useEffect(() => {
-    localStorage.setItem('flexpdf_jobs', JSON.stringify(history));
-  }, [history]);
+    localStorage.setItem('flexpdf_jobs', JSON.stringify(allHistoryRecords));
+  }, [allHistoryRecords]);
 
   useEffect(() => {
     localStorage.setItem('flexpdf_users', JSON.stringify(allUsers));
@@ -439,23 +537,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...record,
       id: `rec_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      userId: user?.id,
+      userId: user ? user.id : 'guest',
     };
-    setHistory((prev) => [newRecord, ...prev.slice(0, 30)]);
+    setAllHistoryRecords((prev) => [newRecord, ...prev.slice(0, 50)]);
   };
 
   const clearHistory = () => {
-    setHistory([]);
-    addNotification('info', 'Historique Effacé', 'Votre journal de documents a été remis à zéro.');
+    if (user) {
+      setAllHistoryRecords((prev) => prev.filter((h) => h.userId !== user.id));
+    } else {
+      setAllHistoryRecords((prev) => prev.filter((h) => h.userId && h.userId !== 'guest'));
+    }
+    addNotification('info', 'Historique Effacé', 'Votre journal de documents personnel a été remis à zéro.');
   };
 
   const removeHistoryItem = (id: string) => {
-    setHistory((prev) => prev.filter((item) => item.id !== id));
+    setAllHistoryRecords((prev) => prev.filter((item) => item.id !== id));
     addNotification('info', 'Fichier Supprimé', 'Le document a été retiré de votre historique.');
   };
 
   const login = (email: string, role: 'user' | 'pro' | 'admin' = 'user') => {
-    const existing = allUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.trim().toLowerCase();
+    
+    // Super admin account check
+    if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase() || cleanEmail === 'admin@flexpdf.com') {
+      const superAdmin = INITIAL_SYSTEM_USERS[0];
+      setUser(superAdmin);
+      const exists = allUsers.some((u) => u.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
+      if (!exists) {
+        setAllUsers((prev) => [superAdmin, ...prev]);
+      }
+      addNotification('success', `Ravi de vous revoir, ${superAdmin.name} !`, 'Connecté avec les privilèges Super Administrateur.');
+      setIsAuthModalOpen(false);
+      return;
+    }
+
+    const existing = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
     if (existing) {
       setUser(existing);
       addNotification('success', `Ravi de vous revoir, ${existing.name} !`, `Connecté avec le profil ${existing.role.toUpperCase()}.`);
@@ -463,7 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newUser: UserProfile = {
         id: `user_${Date.now()}`,
         name: email.split('@')[0],
-        email,
+        email: email.trim(),
         avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
         role,
         subscription: {
@@ -491,6 +608,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const switchDemoUser = (role: 'free' | 'pro' | 'admin') => {
+    if (role === 'admin') {
+      setUser(INITIAL_SYSTEM_USERS[0]);
+      addNotification('success', `Profil Actif : ${INITIAL_SYSTEM_USERS[0].name}`, 'Connecté en tant que Super Admin.');
+      return;
+    }
     const targetRole = role === 'free' ? 'user' : role;
     const existing = allUsers.find((u) => u.role === targetRole);
     if (existing) {
@@ -499,18 +621,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       const dynamicUser: UserProfile = {
         id: `usr_${Date.now()}`,
-        name: role === 'admin' ? 'Administrateur' : role === 'pro' ? 'Membre Pro' : 'Utilisateur',
+        name: role === 'pro' ? 'Membre Pro' : 'Utilisateur',
         email: `${targetRole}@flexpdf.app`,
-        avatar: role === 'admin' ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop' : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
         role: targetRole,
         subscription: {
-          planId: role === 'pro' ? 'pro_monthly' : role === 'admin' ? 'enterprise' : 'free',
+          planId: role === 'pro' ? 'pro_monthly' : 'free',
           status: 'active',
           currentPeriodEnd: '2026-12-31',
           cancelAtPeriodEnd: false,
           renewsOn: '2026-12-31',
-          price: role === 'pro' ? siteSettings.monthlyPrice : role === 'admin' ? siteSettings.annualPrice : 0,
-          billingInterval: role === 'pro' ? 'month' : role === 'admin' ? 'year' : 'free',
+          price: role === 'pro' ? siteSettings.monthlyPrice : 0,
+          billingInterval: role === 'pro' ? 'month' : 'free',
         },
         createdAt: new Date().toISOString().split('T')[0],
         apiKey: `flex_live_${Math.random().toString(36).substr(2, 12)}`,
@@ -568,6 +690,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerName?: string;
       customerEmail?: string;
       discountPercent?: number;
+      company?: string;
+      phone?: string;
+      emailVerified?: boolean;
+      hasPassword?: boolean;
+      keepModalOpen?: boolean;
     }
   ) => {
     const rawPrice = planId === 'pro_annual' ? siteSettings.annualPrice : planId === 'enterprise' ? 99 : siteSettings.monthlyPrice;
@@ -622,12 +749,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: startDate,
         apiKey: `flex_pro_live_${Math.random().toString(36).substring(2, 14)}`,
         lastLogin: startDate,
+        phone: paymentDetails?.phone,
+        company: paymentDetails?.company,
+        emailVerified: paymentDetails?.emailVerified ?? true,
+        hasPassword: paymentDetails?.hasPassword ?? false,
       };
       setAllUsers((prev) => [...prev, newUser]);
       setUser(newUser);
     } else {
       const updatedUser: UserProfile = {
         ...user,
+        name: targetName,
+        phone: paymentDetails?.phone || user.phone,
+        company: paymentDetails?.company || user.company,
+        emailVerified: paymentDetails?.emailVerified !== undefined ? paymentDetails.emailVerified : user.emailVerified,
+        hasPassword: paymentDetails?.hasPassword !== undefined ? paymentDetails.hasPassword : user.hasPassword,
         role: planId === 'enterprise' ? 'admin' : 'pro',
         subscription: updatedSub,
       };
@@ -662,12 +798,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setIsUpgradeModalOpen(false);
     setIsStripeCheckoutOpen(false);
-    setIsSasPayCheckoutOpen(false);
+    if (!paymentDetails?.keepModalOpen) {
+      setIsSasPayCheckoutOpen(false);
+    }
     addNotification(
       'success',
       'Paiement SasPay Validé & Forfait Activé ! 🎉',
       `Votre abonnement ${planId === 'pro_annual' ? 'Annuel (365 jours)' : 'Mensuel (30 jours)'} est actif avec conversions illimitées.`
     );
+  };
+
+  const setUserPassword = (password: string) => {
+    if (!user) return;
+    const updatedUser: UserProfile = {
+      ...user,
+      hasPassword: true,
+    };
+    setUser(updatedUser);
+    setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    addNotification('success', 'Mot de passe Enregistré ! 🔒', 'Votre mot de passe a été configuré avec succès pour vos prochaines connexions.');
   };
 
   const reactivateSubscription = () => {
@@ -704,7 +853,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const purgeMemoryFiles = () => {
-    setHistory([]);
+    if (user) {
+      setAllHistoryRecords((prev) => prev.filter((h) => h.userId !== user.id));
+    } else {
+      setAllHistoryRecords((prev) => prev.filter((h) => h.userId && h.userId !== 'guest'));
+    }
     addNotification('success', 'Mémoire RAM Purgée', 'Tous les fichiers temporaires et jetons en cache ont été supprimés (0 octet conservé).');
   };
 
@@ -727,8 +880,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscription: user.subscription,
       },
       historyRecords: history,
-      invoices,
-      supportTickets: supportTickets.filter((t) => t.userEmail === user.email),
+      invoices: invoices.filter((inv) => inv.customerEmail?.toLowerCase() === user.email.toLowerCase()),
+      supportTickets: supportTickets.filter((t) => t.userEmail?.toLowerCase() === user.email.toLowerCase()),
     };
 
     const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
@@ -745,7 +898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const targetId = user.id;
     setAllUsers((prev) => prev.filter((u) => u.id !== targetId));
-    setHistory((prev) => prev.filter((h) => h.userId !== targetId));
+    setAllHistoryRecords((prev) => prev.filter((h) => h.userId !== targetId));
     setUser(null);
     setActiveView('home');
     addNotification('info', 'Compte Supprimé (Droit à l\'Oubli)', 'Toutes vos données ont été définitivement effacées conformément au RGPD.');
@@ -759,7 +912,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (targetView === 'admin') {
       if (!user) {
-        addNotification('error', 'Garde d\'Accès Administratif', 'Connexion requise avec le compte administrateur (admin@flexpdf.com).');
+        addNotification('error', 'Garde d\'Accès Super Admin', 'Connexion requise avec le compte super-administrateur (fadalsall1997@gmail.com).');
         setActiveView('auth');
         return;
       }
@@ -877,6 +1030,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         switchDemoUser,
         upgradeSubscription,
+        setUserPassword,
         reactivateSubscription,
         cancelSubscription,
         exportUserData,

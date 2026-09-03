@@ -51,6 +51,10 @@ export interface UserProfile {
   lastLogin?: string;
   failedLoginAttempts?: number;
   isLocked?: boolean;
+  phone?: string;
+  company?: string;
+  emailVerified?: boolean;
+  hasPassword?: boolean;
 }
 
 export interface DailyUsage {

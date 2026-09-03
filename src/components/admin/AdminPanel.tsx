@@ -839,16 +839,16 @@ export const AdminPanel: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80 text-xs">
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                 <span className="text-[10px] text-slate-500 uppercase font-mono">Environnement Actif</span>
-                <p className="font-bold text-amber-400 capitalize flex items-center gap-1">
+                <p className={`font-bold capitalize flex items-center gap-1 ${gatewayConfig?.environment === 'live' ? 'text-emerald-400' : 'text-amber-400'}`}>
                   <Radio className="w-3.5 h-3.5" />
-                  {gatewayConfig?.environment || 'Sandbox Engine'}
+                  {gatewayConfig?.environment === 'live' ? 'Production Live' : (gatewayConfig?.environment || 'Sandbox Engine')}
                 </p>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">Merchant Account ID</span>
-                <p className="font-bold text-indigo-300 font-mono">
-                  {gatewayConfig?.merchantId || 'SASP_LIVE_MERCHANT'}
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Clé API Serveur (Live)</span>
+                <p className="font-bold text-indigo-300 font-mono text-[11px] truncate">
+                  {gatewayConfig?.activeKeyMasked || 'sk_live_rsJKSBa..._Bw'}
                 </p>
               </div>
 

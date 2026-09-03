@@ -186,7 +186,7 @@ export const PricingSection: React.FC = () => {
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all hover:scale-105 cursor-pointer flex items-center justify-center gap-2"
           >
             <CreditCard className="w-4 h-4" />
-            <span>{user?.role === 'pro' ? 'Forfait Pro Déjà Actif' : 'Payer avec SasPay & Débloquer'}</span>
+            <span>{user?.role === 'pro' ? 'Gérer / Prolonger avec SasPay' : 'Payer avec SasPay & Débloquer'}</span>
           </button>
         </div>
 

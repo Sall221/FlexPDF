@@ -1,0 +1,8 @@
+# Netlify redirects file
+/webhooks/saspay              /.netlify/functions/saspay-webhook       200
+/api/webhooks/saspay          /.netlify/functions/saspay-webhook       200
+/api/saspay/webhook           /.netlify/functions/saspay-webhook       200
+/payments/softpay/initialize/ /.netlify/functions/saspay-initialize    200
+/api/payments/softpay/initialize/ /.netlify/functions/saspay-initialize 200
+/api/saspay/initiate          /.netlify/functions/saspay-initialize    200
+/*                            /index.html                              200

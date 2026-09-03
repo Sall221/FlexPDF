@@ -43,7 +43,6 @@ export const Navbar: React.FC = () => {
     activeView,
     setActiveView,
     setSelectedToolId,
-    switchDemoUser,
     logout,
     setIsAuthModalOpen,
     openStripeCheckout,

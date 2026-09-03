@@ -576,48 +576,58 @@ export const UserDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Stripe Invoices */}
+          {/* Stripe & SasPay Invoices */}
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-base font-bold text-slate-900">Factures & Justificatifs de Paiement</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px] font-bold">
-                    <th className="pb-3">Numéro</th>
-                    <th className="pb-3">Date</th>
-                    <th className="pb-3">Forfait</th>
-                    <th className="pb-3">Méthode</th>
-                    <th className="pb-3">Montant</th>
-                    <th className="pb-3">Statut</th>
-                    <th className="pb-3 text-right">Télécharger</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 font-mono font-bold text-slate-900">{inv.number}</td>
-                      <td className="py-3 text-slate-500">{inv.date}</td>
-                      <td className="py-3 text-slate-700">{inv.planName}</td>
-                      <td className="py-3 text-slate-500 uppercase">{inv.paymentMethod || 'CB STRIPE'}</td>
-                      <td className="py-3 font-bold text-slate-900">${inv.amount.toFixed(2)}</td>
-                      <td className="py-3">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
-                          PAYÉ
-                        </span>
-                      </td>
-                      <td className="py-3 text-right">
-                        <button
-                          onClick={() => handleDownloadInvoice(inv)}
-                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline font-bold cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" /> Reçu PDF
-                        </button>
-                      </td>
+            {invoices.filter((inv) => user?.role === 'admin' ? true : (inv.customerEmail?.toLowerCase() === user?.email?.toLowerCase())).length === 0 ? (
+              <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl space-y-2">
+                <CreditCard className="w-7 h-7 text-slate-300 mx-auto" />
+                <p className="text-xs font-semibold text-slate-600">Aucune facture enregistrée</p>
+                <p className="text-[11px] text-slate-400">Vos justificatifs et reçus officiels SasPay apparaîtront ici après chaque paiement.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px] font-bold">
+                      <th className="pb-3">Numéro</th>
+                      <th className="pb-3">Date</th>
+                      <th className="pb-3">Forfait</th>
+                      <th className="pb-3">Méthode</th>
+                      <th className="pb-3">Montant</th>
+                      <th className="pb-3">Statut</th>
+                      <th className="pb-3 text-right">Télécharger</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {invoices
+                      .filter((inv) => user?.role === 'admin' ? true : (inv.customerEmail?.toLowerCase() === user?.email?.toLowerCase()))
+                      .map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 font-mono font-bold text-slate-900">{inv.number}</td>
+                          <td className="py-3 text-slate-500">{inv.date}</td>
+                          <td className="py-3 text-slate-700">{inv.planName}</td>
+                          <td className="py-3 text-slate-500 uppercase">{inv.paymentMethod || 'SASPAY'}</td>
+                          <td className="py-3 font-bold text-slate-900">${inv.amount.toFixed(2)}</td>
+                          <td className="py-3">
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">
+                              PAYÉ
+                            </span>
+                          </td>
+                          <td className="py-3 text-right">
+                            <button
+                              onClick={() => handleDownloadInvoice(inv)}
+                              className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline font-bold cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Reçu PDF
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

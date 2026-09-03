@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { saspayRouter } from './server/saspayGateway';
+import { saspayRouter, handleSasPayWebhook } from './server/saspayGateway';
 
 async function startServer() {
   const app = express();
@@ -13,7 +13,7 @@ async function startServer() {
 
   // Request logger for API calls
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/webhooks')) {
       console.log(`[API] ${req.method} ${req.path}`);
     }
     next();
@@ -28,6 +28,16 @@ async function startServer() {
       environment: process.env.NODE_ENV || 'development',
     });
   });
+
+  // Direct webhook endpoint: /webhooks/saspay & /api/webhooks/saspay & /api/saspay/webhook
+  app.post('/webhooks/saspay', handleSasPayWebhook);
+  app.post('/api/webhooks/saspay', handleSasPayWebhook);
+
+  // Direct SoftPay initialize endpoints matching official SasPay paths
+  app.post('/payments/softpay/initialize', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+  app.post('/payments/softpay/initialize/', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+  app.post('/api/payments/softpay/initialize', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+  app.post('/api/payments/softpay/initialize/', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
 
   // Mount SasPay payment gateway routes
   app.use('/api/saspay', saspayRouter);

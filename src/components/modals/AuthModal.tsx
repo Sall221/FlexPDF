@@ -3,7 +3,7 @@ import { X, Mail, Lock, User, ArrowRight, ShieldCheck, Crown, Sparkles, CheckCir
 import { useApp } from '../../context/AppContext';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, setIsAuthModalOpen, setIsForgotPasswordModalOpen, login, switchDemoUser, addNotification } = useApp();
+  const { isAuthModalOpen, setIsAuthModalOpen, setIsForgotPasswordModalOpen, login, addNotification } = useApp();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
