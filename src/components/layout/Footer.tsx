@@ -154,6 +154,11 @@ export const Footer: React.FC = () => {
                   Protection des Données (RGPD)
                 </button>
               </li>
+              <li>
+                <button onClick={() => { setActiveView('webhooks'); setSelectedToolId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-indigo-600 transition-colors text-indigo-600 font-semibold flex items-center gap-1">
+                  <span>Webhooks & Passerelle SasPay</span>
+                </button>
+              </li>
             </ul>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check, Crown, Zap, Shield, Sparkles, ArrowRight, CreditCard, Gift } from 'lucide-react';
+import { X, Check, Crown, Zap, Shield, Sparkles, ArrowRight, CreditCard, Gift, ExternalLink } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { SubscriptionPlanId } from '../../types';
 
@@ -132,8 +132,8 @@ export const UpgradeModal: React.FC = () => {
             className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all hover:scale-105 flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
             <CreditCard className="w-4 h-4" />
-            <span>Payer avec SasPay</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <span>Continuer sur SasPay</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </div>
 

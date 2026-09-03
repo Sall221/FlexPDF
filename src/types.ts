@@ -126,7 +126,7 @@ export interface AppNotification {
   message: string;
 }
 
-export type ActiveView = 'home' | 'all-tools' | 'tool' | 'dashboard' | 'admin' | 'pricing' | 'contact' | 'legal' | 'auth' | 'forgot-password' | 'maintenance' | 'not-found';
+export type ActiveView = 'home' | 'all-tools' | 'tool' | 'dashboard' | 'admin' | 'pricing' | 'contact' | 'legal' | 'auth' | 'forgot-password' | 'maintenance' | 'not-found' | 'webhooks';
 
 export interface SupportTicket {
   id: string;

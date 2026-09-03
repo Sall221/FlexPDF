@@ -12,6 +12,7 @@ import {
   SupportTicket,
   SiteSettings,
 } from '../types';
+import { saspayService } from '../services/saspayService';
 
 interface AppContextType {
   user: UserProfile | null;
@@ -77,6 +78,12 @@ interface AppContextType {
   selectedCheckoutPlan: SubscriptionPlanId;
   openStripeCheckout: (planId?: SubscriptionPlanId) => void;
   openSasPayCheckout: (planId?: SubscriptionPlanId) => void;
+  initiateSasPayRedirect: (planId?: SubscriptionPlanId) => Promise<void>;
+  isSasPayRedirecting: boolean;
+  sasPayPaymentUrl: string | null;
+  sasPayRedirectError: string | null;
+  sasPayRedirectPlan: SubscriptionPlanId;
+  closeSasPayRedirect: () => void;
   adminStats: AdminStats;
   generateDemoStats: () => void;
   systemLogs: SystemLog[];
@@ -227,7 +234,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null; // Guest by default! No user logged in before user logs in.
   });
 
-  const [activeView, setActiveView] = useState<ActiveView>('home');
+  const [activeView, setActiveView] = useState<ActiveView>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      if (
+        path.includes('/webhooks') ||
+        path.includes('/payment') ||
+        search.includes('payment_status') ||
+        search.includes('webhooks') ||
+        search.includes('ref=')
+      ) {
+        return 'webhooks';
+      }
+    }
+    return 'home';
+  });
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [legalActiveTab, setLegalActiveTab] = useState<'mentions' | 'cgu' | 'privacy' | 'security'>('cgu');
 
@@ -280,6 +302,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isStripeCheckoutOpen, setIsStripeCheckoutOpen] = useState(false);
   const [isSasPayCheckoutOpen, setIsSasPayCheckoutOpen] = useState(false);
   const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<SubscriptionPlanId>('pro_annual');
+
+  // Direct SasPay hosted checkout redirection states
+  const [isSasPayRedirecting, setIsSasPayRedirecting] = useState(false);
+  const [sasPayPaymentUrl, setSasPayPaymentUrl] = useState<string | null>(null);
+  const [sasPayRedirectError, setSasPayRedirectError] = useState<string | null>(null);
+  const [sasPayRedirectPlan, setSasPayRedirectPlan] = useState<SubscriptionPlanId>('pro_monthly');
 
   // Registry 5: flexpdf_invoices (dynamic invoices generated upon payment)
   const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
@@ -655,18 +683,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const openStripeCheckout = (planId: SubscriptionPlanId = 'pro_annual') => {
+  const closeSasPayRedirect = () => {
+    setIsSasPayRedirecting(false);
+    setSasPayPaymentUrl(null);
+    setSasPayRedirectError(null);
+  };
+
+  const initiateSasPayRedirect = async (planId: SubscriptionPlanId = 'pro_monthly') => {
+    setSasPayRedirectPlan(planId);
     setSelectedCheckoutPlan(planId);
-    setIsSasPayCheckoutOpen(true);
-    setIsStripeCheckoutOpen(true);
+    setIsSasPayRedirecting(true);
+    setSasPayPaymentUrl(null);
+    setSasPayRedirectError(null);
     setIsUpgradeModalOpen(false);
+    setIsSasPayCheckoutOpen(false);
+    setIsStripeCheckoutOpen(false);
+
+    const price = planId === 'enterprise' ? 39 : planId === 'pro_annual' ? 79 : siteSettings.monthlyPrice || 9;
+    const customer = {
+      name: user?.name || 'Client FlexPDF',
+      email: user?.email || 'client@flexpdf.com',
+      phone: user?.phone || '221771234567',
+    };
+
+    try {
+      const returnUrl = `${window.location.origin}/?payment_status=success&plan=${planId}&amount=${price}&ref=REF-FP-${Date.now().toString(36).toUpperCase()}`;
+      const res = await saspayService.initiateHostedCheckout({
+        planId,
+        amount: price,
+        customer,
+        returnUrl,
+      });
+
+      if (res && res.payment_url) {
+        setSasPayPaymentUrl(res.payment_url);
+        // Direct browser redirection to SasPay checkout portal
+        try {
+          window.location.href = res.payment_url;
+        } catch (navErr) {
+          console.warn('Browser redirect note', navErr);
+        }
+      } else {
+        throw new Error('Lien de paiement introuvable dans la réponse SasPay.');
+      }
+    } catch (err: any) {
+      console.error('Failed to initiate SasPay redirect', err);
+      setSasPayRedirectError(err?.message || 'Erreur lors de la communication avec SasPay.');
+    }
+  };
+
+  const openStripeCheckout = (planId: SubscriptionPlanId = 'pro_annual') => {
+    initiateSasPayRedirect(planId);
   };
 
   const openSasPayCheckout = (planId: SubscriptionPlanId = 'pro_annual') => {
-    setSelectedCheckoutPlan(planId);
-    setIsSasPayCheckoutOpen(true);
-    setIsStripeCheckoutOpen(true);
-    setIsUpgradeModalOpen(false);
+    initiateSasPayRedirect(planId);
   };
 
   const generateDemoStats = () => {
@@ -1066,6 +1137,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedCheckoutPlan,
         openStripeCheckout,
         openSasPayCheckout,
+        initiateSasPayRedirect,
+        isSasPayRedirecting,
+        sasPayPaymentUrl,
+        sasPayRedirectError,
+        sasPayRedirectPlan,
+        closeSasPayRedirect,
         adminStats,
         generateDemoStats,
         systemLogs,

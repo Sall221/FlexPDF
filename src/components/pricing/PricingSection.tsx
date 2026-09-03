@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Crown, Zap, Shield, Sparkles, HelpCircle, ChevronDown, ChevronUp, CreditCard, Lock } from 'lucide-react';
+import { Check, Crown, Zap, Shield, Sparkles, HelpCircle, ChevronDown, ChevronUp, CreditCard, Lock, ExternalLink } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const PricingSection: React.FC = () => {
@@ -186,7 +186,8 @@ export const PricingSection: React.FC = () => {
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all hover:scale-105 cursor-pointer flex items-center justify-center gap-2"
           >
             <CreditCard className="w-4 h-4" />
-            <span>{user?.role === 'pro' ? 'Gérer / Prolonger avec SasPay' : 'Payer avec SasPay & Débloquer'}</span>
+            <span>{user?.role === 'pro' ? 'Gérer mon Abonnement SasPay' : 'S\'abonner avec SasPay'}</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -232,7 +233,8 @@ export const PricingSection: React.FC = () => {
             className="w-full py-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-indigo-700 font-bold text-xs border border-indigo-200 shadow-2xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>Prendre le Forfait Entreprise</span>
+            <span>Prendre l'Offre Entreprise via SasPay</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

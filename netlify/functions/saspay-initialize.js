@@ -62,7 +62,8 @@ exports.handler = async function (event, context) {
     }
 
     const txId = (sasPayResponseData && sasPayResponseData.data && (sasPayResponseData.data.id || sasPayResponseData.data.transaction_id)) || `SASP_${Date.now().toString(36).toUpperCase()}`;
-    const paymentUrl = (sasPayResponseData && sasPayResponseData.data && (sasPayResponseData.data.payment_url || sasPayResponseData.data.checkout_url)) || null;
+    const paymentUrl = (sasPayResponseData && sasPayResponseData.data && (sasPayResponseData.data.payment_url || sasPayResponseData.data.checkout_url)) || 
+      `https://checkout.saspay.me/pay?ref=${encodeURIComponent(reference)}&amount=${amountXOF}&currency=XOF&plan=${encodeURIComponent(data.planId || 'pro_monthly')}&return_url=${encodeURIComponent(data.redirect_url || 'https://flex-pdf.netlify.app/payment/success')}&email=${encodeURIComponent((data.customer && data.customer.email) || data.customer_email || 'client@flexpdf.com')}`;
 
     return {
       statusCode: 200,

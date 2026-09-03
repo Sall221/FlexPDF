@@ -19,6 +19,8 @@ import { AuthModal } from './components/modals/AuthModal';
 import { ForgotPasswordModal } from './components/modals/ForgotPasswordModal';
 import { UpgradeModal } from './components/modals/UpgradeModal';
 import { SasPayModal } from './components/modals/SasPayModal';
+import { SasPayRedirectModal } from './components/modals/SasPayRedirectModal';
+import { SasPayWebhooksPage } from './components/pages/SasPayWebhooksPage';
 import { ToastContainer } from './components/common/ToastContainer';
 import { TOOLS_DATA } from './data/toolsData';
 
@@ -35,6 +37,12 @@ const MainContent: React.FC = () => {
     setIsSasPayCheckoutOpen,
     setIsStripeCheckoutOpen,
     selectedCheckoutPlan,
+    isSasPayRedirecting,
+    sasPayPaymentUrl,
+    sasPayRedirectError,
+    sasPayRedirectPlan,
+    closeSasPayRedirect,
+    initiateSasPayRedirect,
   } = useApp();
 
   const currentTool = TOOLS_DATA.find((t) => t.id === selectedToolId) || TOOLS_DATA[0];
@@ -85,6 +93,8 @@ const MainContent: React.FC = () => {
 
             {activeView === 'admin' && (user?.role === 'admin' ? <AdminPanel /> : <AdminAccessGuard />)}
 
+            {activeView === 'webhooks' && <SasPayWebhooksPage />}
+
             {activeView === 'not-found' && <NotFoundPage />}
           </>
         )}
@@ -95,6 +105,15 @@ const MainContent: React.FC = () => {
       <AuthModal />
       <ForgotPasswordModal />
       <UpgradeModal />
+      <SasPayRedirectModal
+        isOpen={isSasPayRedirecting}
+        onClose={closeSasPayRedirect}
+        planId={sasPayRedirectPlan}
+        isLoading={isSasPayRedirecting && !sasPayPaymentUrl && !sasPayRedirectError}
+        paymentUrl={sasPayPaymentUrl}
+        error={sasPayRedirectError}
+        onRetry={() => initiateSasPayRedirect(sasPayRedirectPlan)}
+      />
       <SasPayModal
         isOpen={isSasPayCheckoutOpen || isStripeCheckoutOpen}
         onClose={() => {
