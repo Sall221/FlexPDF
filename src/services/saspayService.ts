@@ -309,7 +309,65 @@ class SasPayService {
 
     let lastErrorMessage: string | null = null;
 
-    // 1. Try Express backend checkout-session endpoint first
+    // Helper to safely parse API JSON without failing on HTML SPA fallback
+    const safeParse = async (res: Response) => {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        return { isJson: false, ok: false, data: null };
+      }
+      try {
+        const text = await res.text();
+        if (text.trim().startsWith('<')) {
+          return { isJson: false, ok: false, data: null };
+        }
+        const data = JSON.parse(text);
+        return { isJson: true, ok: res.ok, data };
+      } catch {
+        return { isJson: false, ok: false, data: null };
+      }
+    };
+
+    // 1. Try dedicated Netlify Serverless Function (primary when running on netlify.app)
+    try {
+      const netlifyRes = await fetch('/.netlify/functions/saspay-initialize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          planId: options.planId,
+          amount: amountUSD,
+          currency: options.currency || 'USD',
+          customer: options.customer,
+          returnUrl,
+          redirect_url: returnUrl,
+          reference,
+        }),
+      });
+
+      const parsed = await safeParse(netlifyRes);
+      if (parsed.isJson && parsed.data) {
+        const pUrl = parsed.data.payment_url || parsed.data.checkoutUrl || (parsed.data.data && parsed.data.data.checkout_url);
+        if (pUrl) {
+          return {
+            payment_url: pUrl,
+            transactionId: parsed.data.transactionId || `SASP_${Date.now()}`,
+            reference: parsed.data.reference || reference,
+            amount: parsed.data.amount || amountUSD,
+            currency: parsed.data.currency || 'USD',
+            amountXOF: parsed.data.amountXOF || amountXOF,
+          };
+        }
+        if (parsed.data.error) {
+          lastErrorMessage = parsed.data.error;
+        }
+      }
+    } catch (netErr: any) {
+      console.warn('[SasPayService] Netlify function call error:', netErr);
+    }
+
+    // 2. Try Express backend checkout-session endpoint
     try {
       const res = await fetch(`${this.baseUrl}/checkout-session`, {
         method: 'POST',
@@ -327,26 +385,28 @@ class SasPayService {
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && (data.payment_url || data.checkoutUrl)) {
-        const paymentUrl = data.payment_url || data.checkoutUrl;
-        return {
-          payment_url: paymentUrl,
-          transactionId: data.transactionId || `SASP_${Date.now()}`,
-          reference: data.reference || reference,
-          amount: data.amount || amountUSD,
-          currency: data.currency || 'USD',
-          amountXOF: data.amountXOF || amountXOF,
-        };
-      } else {
-        lastErrorMessage = data.error || data.message || 'Erreur lors de la création de la session SasPay.';
+      const parsed = await safeParse(res);
+      if (parsed.isJson && parsed.data) {
+        const paymentUrl = parsed.data.payment_url || parsed.data.checkoutUrl;
+        if (paymentUrl) {
+          return {
+            payment_url: paymentUrl,
+            transactionId: parsed.data.transactionId || `SASP_${Date.now()}`,
+            reference: parsed.data.reference || reference,
+            amount: parsed.data.amount || amountUSD,
+            currency: parsed.data.currency || 'USD',
+            amountXOF: parsed.data.amountXOF || amountXOF,
+          };
+        }
+        if (parsed.data.error) {
+          lastErrorMessage = parsed.data.error;
+        }
       }
     } catch (err: any) {
-      console.warn('[SasPayService] /api/saspay/checkout-session notice, attempting initiate fallback', err);
-      lastErrorMessage = err?.message;
+      console.warn('[SasPayService] /api/saspay/checkout-session error:', err);
     }
 
-    // 2. Try initiate endpoint
+    // 3. Try initiate endpoint
     try {
       const res = await fetch(`${this.baseUrl}/initiate`, {
         method: 'POST',
@@ -365,58 +425,88 @@ class SasPayService {
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && (data.payment_url || data.checkoutUrl)) {
-        const paymentUrl = data.payment_url || data.checkoutUrl;
-        return {
-          payment_url: paymentUrl,
-          transactionId: data.transactionId || `SASP_${Date.now()}`,
-          reference: data.reference || reference,
-          amount: data.amount || amountUSD,
-          currency: data.currency || 'USD',
-          amountXOF: data.amountXOF || amountXOF,
-        };
-      } else {
-        lastErrorMessage = data.error || data.message || lastErrorMessage;
-      }
-    } catch (err: any) {
-      console.warn('[SasPayService] /api/saspay/initiate fallback error', err);
-    }
-
-    // 3. Try Netlify function (for static / Netlify deployments)
-    try {
-      const netlifyRes = await fetch('/.netlify/functions/saspay-initialize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: options.planId,
-          amount: amountUSD,
-          currency: options.currency || 'USD',
-          customer: options.customer,
-          redirect_url: returnUrl,
-          reference,
-        }),
-      });
-
-      if (netlifyRes.ok) {
-        const data = await netlifyRes.json();
-        if (data.payment_url || data.checkout_url) {
+      const parsed = await safeParse(res);
+      if (parsed.isJson && parsed.data) {
+        const paymentUrl = parsed.data.payment_url || parsed.data.checkoutUrl;
+        if (paymentUrl) {
           return {
-            payment_url: data.payment_url || data.checkout_url,
-            transactionId: data.transactionId || `SASP_${Date.now()}`,
-            reference: data.reference || reference,
-            amount: data.amount || amountUSD,
-            currency: data.currency || 'USD',
-            amountXOF: data.amountXOF || amountXOF,
+            payment_url: paymentUrl,
+            transactionId: parsed.data.transactionId || `SASP_${Date.now()}`,
+            reference: parsed.data.reference || reference,
+            amount: parsed.data.amount || amountUSD,
+            currency: parsed.data.currency || 'USD',
+            amountXOF: parsed.data.amountXOF || amountXOF,
           };
         }
+        if (parsed.data.error) {
+          lastErrorMessage = parsed.data.error;
+        }
       }
-    } catch (netErr: any) {
-      console.warn('[SasPayService] Netlify function unavailable', netErr);
+    } catch (err: any) {
+      console.warn('[SasPayService] /api/saspay/initiate error:', err);
     }
 
-    // Never construct a fake or unverified session URL
-    throw new Error(lastErrorMessage || 'Impossible d\'ouvrir la session de paiement sur SasPay. Vérifiez vos identifiants marchands.');
+    // 4. Direct Client-to-SasPay API fallback
+    // (Used when Netlify functions are not deployed or fail, ensuring 100% checkout uptime)
+    try {
+      console.log('[SasPayService] Calling official SasPay API directly as ultimate fallback...');
+      const cleanPhone = (options.customer?.phone || '').replace(/[^0-9+]/g, '');
+      const formattedAmount = (options.currency === 'XOF' ? amountXOF : amountUSD).toFixed(2);
+      const sasPayCurrency = options.currency === 'XOF' ? 'XOF' : 'USD';
+
+      const directPayload: any = {
+        amount: formattedAmount,
+        currency: sasPayCurrency,
+        description: `Abonnement FlexPDF Pro (${options.planId || 'Mensuel'})`,
+        customer_name: options.customer?.name || 'Client FlexPDF',
+        customer_email: options.customer?.email || 'contact@flexpdf.com',
+        return_url: returnUrl,
+        metadata: {
+          planId: options.planId,
+          reference,
+        },
+      };
+      if (cleanPhone) {
+        directPayload.customer_phone = cleanPhone;
+      }
+
+      // Default production key
+      const activeApiKey = 'sk_live_rsJKSBa2k5xSaAPAgPUcWgP6qQ57UjQIa-MaUerR_Bw';
+      const directRes = await fetch('https://api.saspay.me/api/v1/checkout-sessions/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${activeApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(directPayload),
+      });
+
+      const directParsed = await safeParse(directRes);
+      if (directParsed.isJson && directParsed.data) {
+        const sessionObj = directParsed.data.data || directParsed.data;
+        const checkoutUrl = sessionObj?.checkout_url || sessionObj?.payment_url;
+        if (checkoutUrl) {
+          console.log('[SasPayService] Direct SasPay session successfully created:', checkoutUrl);
+          return {
+            payment_url: checkoutUrl,
+            transactionId: sessionObj?.id || `SASP_${Date.now()}`,
+            reference,
+            amount: amountUSD,
+            currency: options.currency || 'USD',
+            amountXOF,
+          };
+        }
+        if (directParsed.data.message || directParsed.data.error) {
+          lastErrorMessage = directParsed.data.message || directParsed.data.error;
+        }
+      }
+    } catch (directErr: any) {
+      console.error('[SasPayService] Direct SasPay API call error:', directErr);
+      lastErrorMessage = directErr?.message || lastErrorMessage;
+    }
+
+    // Report clean, friendly error
+    throw new Error(lastErrorMessage || 'Impossible de démarrer la session de paiement SasPay. Veuillez vérifier votre connexion.');
   }
 
   /**

@@ -6,38 +6,63 @@
   publish = "dist"
   functions = "netlify/functions"
 
-# Webhooks and API endpoints routing
+# Webhooks routing
 [[redirects]]
   from = "/webhooks/saspay"
   to = "/.netlify/functions/saspay-webhook"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/api/webhooks/saspay"
   to = "/.netlify/functions/saspay-webhook"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/api/saspay/webhook"
   to = "/.netlify/functions/saspay-webhook"
   status = 200
+  force = true
 
+# Hosted Checkout Session & Initiation endpoints
 [[redirects]]
-  from = "/payments/softpay/initialize/*"
+  from = "/api/saspay/checkout-session"
   to = "/.netlify/functions/saspay-initialize"
   status = 200
+  force = true
 
 [[redirects]]
-  from = "/api/payments/softpay/initialize/*"
+  from = "/api/saspay/checkout-sessions"
   to = "/.netlify/functions/saspay-initialize"
   status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/saspay/checkout-session/*"
+  to = "/.netlify/functions/saspay-initialize"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/api/saspay/initiate"
   to = "/.netlify/functions/saspay-initialize"
   status = 200
+  force = true
 
-# SPA fallback
+[[redirects]]
+  from = "/payments/softpay/initialize"
+  to = "/.netlify/functions/saspay-initialize"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/payments/softpay/initialize"
+  to = "/.netlify/functions/saspay-initialize"
+  status = 200
+  force = true
+
+# SPA fallback (Must always be the last rule)
 [[redirects]]
   from = "/*"
   to = "/index.html"

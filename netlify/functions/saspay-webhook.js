@@ -1,12 +1,28 @@
 // netlify/functions/saspay-webhook.js
 // Netlify Serverless Function for SasPay Webhook
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-// In-memory or database subscription activation handler
-exports.handler = async function (event, context) {
+export const handler = async function (event, context) {
+  // CORS Preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-SasPay-Signature, X-Signature',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
+      body: '',
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ error: 'Method Not Allowed' }),
     };
   }
@@ -41,13 +57,14 @@ exports.handler = async function (event, context) {
 
     // 3. Process completed payment
     if (status === 'completed' || status === 'success' || status === 'paid') {
-      // Determine plan from amount or reference
-      // e.g. amount >= 70 ? 'pro_annual' : 'pro_monthly'
       console.log(`[SasPay Webhook Netlify] Payment SUCCESS for ${reference} - Amount: ${amount}`);
 
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({
           status: 'success',
           message: 'Abonnement FlexPDF activé avec succès.',
@@ -60,15 +77,26 @@ exports.handler = async function (event, context) {
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'ignored', message: 'Event status not completed' }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        status: 'received',
+        eventStatus: status,
+        reference,
+        transactionId,
+      }),
     };
   } catch (err) {
     console.error('[SasPay Webhook Netlify] Error:', err);
     return {
-      statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Malformed webhook event', details: err.message }),
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({ error: err.message }),
     };
   }
 };

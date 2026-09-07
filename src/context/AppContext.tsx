@@ -420,6 +420,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const isPaymentSuccess = 
+        urlParams.get('payment_status') === 'success' ||
         urlParams.get('payment') === 'success' || 
         urlParams.get('status') === 'completed' || 
         urlParams.get('status') === 'success' ||
