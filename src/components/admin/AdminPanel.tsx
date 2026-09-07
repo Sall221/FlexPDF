@@ -29,6 +29,7 @@ import {
   Radio,
   Zap,
   RefreshCw,
+  User,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserProfile } from '../../types';
@@ -462,7 +463,13 @@ export const AdminPanel: React.FC = () => {
                     <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-lg object-cover" />
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-lg object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs ring-1 ring-indigo-200">
+                              {u.name ? u.name.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+                            </div>
+                          )}
                           <div>
                             <p className="font-bold text-slate-900">{u.name}</p>
                             <p className="text-[10px] text-slate-400">{u.email}</p>

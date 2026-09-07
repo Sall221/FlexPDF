@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   User,
   Clock,
@@ -70,6 +70,13 @@ export const UserDashboard: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name || '');
+      setEditAvatar(user.avatar || '');
+    }
+  }, [user?.name, user?.avatar]);
 
   const processAvatarFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -261,11 +268,17 @@ export const UserDashboard: React.FC = () => {
       <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="relative group cursor-pointer" onClick={() => setActiveTab('settings')} title="Cliquer pour changer la photo de profil">
-            <img
-              src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-              alt={user?.name || 'User'}
-              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-indigo-500/10 shadow-sm transition-transform group-hover:scale-105"
-            />
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user?.name || 'User'}
+                className="w-16 h-16 rounded-2xl object-cover ring-4 ring-indigo-500/10 shadow-sm transition-transform group-hover:scale-105"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center font-black text-xl shadow-md transition-transform group-hover:scale-105 ring-4 ring-indigo-500/10">
+                {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-7 h-7" />}
+              </div>
+            )}
             <div className="absolute inset-0 bg-slate-900/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white">
               <Camera className="w-4 h-4" />
             </div>
@@ -823,21 +836,35 @@ export const UserDashboard: React.FC = () => {
                   }`}
                 >
                   {/* Photo Preview with Hover Change Trigger */}
-                  <div className="relative group shrink-0">
-                    <img
-                      src={editAvatar || user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                      alt="Aperçu avatar"
-                      className="w-20 h-20 rounded-2xl object-cover ring-2 ring-indigo-500/20 shadow-sm transition-transform group-hover:scale-105"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute inset-0 bg-slate-900/50 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white cursor-pointer text-[10px] font-semibold gap-1"
-                      title="Changer la photo"
-                    >
-                      <Camera className="w-5 h-5" />
-                      <span>Modifier</span>
-                    </button>
+                  <div className="shrink-0">
+                    {editAvatar ? (
+                      <div className="relative group">
+                        <img
+                          src={editAvatar}
+                          alt="Aperçu avatar"
+                          className="w-20 h-20 rounded-2xl object-cover ring-2 ring-indigo-500/20 shadow-sm transition-transform group-hover:scale-105"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute inset-0 bg-slate-900/50 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white cursor-pointer text-[10px] font-semibold gap-1"
+                          title="Changer la photo"
+                        >
+                          <Camera className="w-5 h-5" />
+                          <span>Modifier</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-50 to-slate-100 border-2 border-dashed border-indigo-200 hover:border-indigo-400 text-indigo-600 flex flex-col items-center justify-center text-xs font-semibold gap-1 transition-all cursor-pointer group"
+                        title="Importer une photo"
+                      >
+                        <User className="w-6 h-6 text-indigo-400 group-hover:scale-110 transition-transform" />
+                        <span className="text-[10px] text-slate-500">Ajouter</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Upload Controls & Instructions */}
@@ -872,13 +899,10 @@ export const UserDashboard: React.FC = () => {
                       {editAvatar && (
                         <button
                           type="button"
-                          onClick={() => {
-                            const defaultAvatar = `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`;
-                            setEditAvatar(defaultAvatar);
-                          }}
+                          onClick={() => setEditAvatar('')}
                           className="px-3 py-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
                         >
-                          Réinitialiser par défaut
+                          Supprimer la photo
                         </button>
                       )}
                     </div>

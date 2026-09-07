@@ -107,13 +107,13 @@ const DEFAULT_FREE_LIMIT = 3;
 const DESIGNATED_ADMIN_EMAIL = 'admin@flexpdf.com';
 const SUPER_ADMIN_EMAIL = 'fadalsall1997@gmail.com';
 
-// Default designated Admin and Super Admin accounts
+// Default designated Admin and Super Admin accounts (no default external photo)
 const INITIAL_SYSTEM_USERS: UserProfile[] = [
   {
     id: 'admin_flexpdf_designated',
     name: 'Admin FlexPDF',
     email: DESIGNATED_ADMIN_EMAIL,
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    avatar: '',
     role: 'admin',
     subscription: {
       planId: 'enterprise',
@@ -134,7 +134,7 @@ const INITIAL_SYSTEM_USERS: UserProfile[] = [
     id: 'super_admin_fadalsall',
     name: 'Fadal Sall',
     email: SUPER_ADMIN_EMAIL,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    avatar: '',
     role: 'admin',
     subscription: {
       planId: 'enterprise',
@@ -155,14 +155,33 @@ const INITIAL_SYSTEM_USERS: UserProfile[] = [
   },
 ];
 
-// Clean legacy mock test users and ensure visitors start unauthenticated by default
+// Clean legacy mock test users and strip any legacy unsplash default photos
 if (typeof window !== 'undefined') {
   try {
-    const isCleaned = localStorage.getItem('flexpdf_v6_unauth_clean');
-    if (!isCleaned) {
-      localStorage.removeItem('flexpdf_active_user'); // Visitors start unauthenticated
-      localStorage.setItem('flexpdf_users', JSON.stringify(INITIAL_SYSTEM_USERS));
-      localStorage.setItem('flexpdf_v6_unauth_clean', 'true');
+    const savedUsers = localStorage.getItem('flexpdf_users');
+    if (savedUsers) {
+      const parsed = JSON.parse(savedUsers);
+      if (Array.isArray(parsed)) {
+        let modified = false;
+        const cleaned = parsed.map((u: any) => {
+          if (u.avatar && typeof u.avatar === 'string' && u.avatar.includes('images.unsplash.com')) {
+            modified = true;
+            return { ...u, avatar: '' };
+          }
+          return u;
+        });
+        if (modified) {
+          localStorage.setItem('flexpdf_users', JSON.stringify(cleaned));
+        }
+      }
+    }
+    const savedActive = localStorage.getItem('flexpdf_active_user');
+    if (savedActive) {
+      const activeParsed = JSON.parse(savedActive);
+      if (activeParsed?.avatar && typeof activeParsed.avatar === 'string' && activeParsed.avatar.includes('images.unsplash.com')) {
+        activeParsed.avatar = '';
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(activeParsed));
+      }
     }
   } catch (e) {
     // Ignore in SSR
@@ -192,13 +211,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         const cleaned = Array.isArray(parsed)
-          ? parsed.filter((u: any) => 
-              u.email !== 'alex@flexpdf.com' && 
-              u.email !== 'sarah@flexpdf.com' && 
-              u.email !== 'free@flexpdf.app' &&
-              u.email !== 'pro@flexpdf.app' &&
-              u.email !== 'admin@flexpdf.app'
-            )
+          ? parsed
+              .filter((u: any) => 
+                u.email !== 'alex@flexpdf.com' && 
+                u.email !== 'sarah@flexpdf.com' && 
+                u.email !== 'free@flexpdf.app' &&
+                u.email !== 'pro@flexpdf.app' &&
+                u.email !== 'admin@flexpdf.app'
+              )
+              .map((u: any) => {
+                if (u.avatar && typeof u.avatar === 'string' && u.avatar.includes('images.unsplash.com')) {
+                  return { ...u, avatar: '' };
+                }
+                return u;
+              })
           : [];
         
         // Ensure designated administrators are present
@@ -225,6 +251,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.email && parsed.id) {
+          if (parsed.avatar && typeof parsed.avatar === 'string' && parsed.avatar.includes('images.unsplash.com')) {
+            parsed.avatar = '';
+          }
           return parsed;
         }
       } catch (e) {
@@ -600,57 +629,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = (email: string, role: 'user' | 'pro' | 'enterprise' | 'admin' = 'user') => {
     const cleanEmail = email.trim().toLowerCase();
     
-    // Designated admin accounts check
+    // 1. First check if user already exists in allUsers (so custom avatar, name, and settings are preserved!)
+    const existing = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      const isDesignatedAdmin = cleanEmail === DESIGNATED_ADMIN_EMAIL.toLowerCase() || cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase();
+      const userToLogin: UserProfile = isDesignatedAdmin && existing.role !== 'admin'
+        ? { ...existing, role: 'admin' }
+        : existing;
+      
+      setUser(userToLogin);
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(userToLogin));
+      } catch (err) {}
+      addNotification('success', `Ravi de vous revoir, ${userToLogin.name} !`, `Connecté avec le profil ${userToLogin.role.toUpperCase()}.`);
+      setIsAuthModalOpen(false);
+      return;
+    }
+
+    // 2. Designated admin accounts check if not yet in allUsers
     if (cleanEmail === DESIGNATED_ADMIN_EMAIL.toLowerCase() || cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
       const adminAccount = INITIAL_SYSTEM_USERS.find((u) => u.email.toLowerCase() === cleanEmail) || INITIAL_SYSTEM_USERS[0];
       setUser(adminAccount);
-      const exists = allUsers.some((u) => u.email.toLowerCase() === cleanEmail);
-      if (!exists) {
-        setAllUsers((prev) => [adminAccount, ...prev]);
-      }
+      setAllUsers((prev) => [adminAccount, ...prev]);
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(adminAccount));
+      } catch (err) {}
       addNotification('success', `Ravi de vous revoir, ${adminAccount.name} !`, 'Connecté avec les privilèges Administrateur FlexPDF.');
       setIsAuthModalOpen(false);
       return;
     }
 
-    const existing = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      setUser(existing);
-      addNotification('success', `Ravi de vous revoir, ${existing.name} !`, `Connecté avec le profil ${existing.role.toUpperCase()}.`);
-    } else {
-      const newUser: UserProfile = {
-        id: `user_${Date.now()}`,
-        name: email.split('@')[0],
-        email: email.trim(),
-        avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-        role,
-        subscription: {
-          planId: role === 'enterprise' ? 'enterprise' : role === 'pro' ? 'pro_monthly' : role === 'admin' ? 'enterprise' : 'free',
-          status: 'active',
-          currentPeriodEnd: '2026-09-29',
-          cancelAtPeriodEnd: false,
-          renewsOn: '2026-09-29',
-          price: role === 'enterprise' ? 99 : role === 'pro' ? 9 : role === 'admin' ? 99 : 0,
-          billingInterval: role === 'enterprise' || role === 'admin' ? 'year' : role === 'pro' ? 'month' : 'free',
-        },
-        createdAt: new Date().toISOString().split('T')[0],
-        apiKey: `flex_live_${Math.random().toString(36).substr(2, 12)}`,
-      };
-      setAllUsers((prev) => [...prev, newUser]);
-      setUser(newUser);
-      addNotification('success', 'Compte Créé !', `Bienvenue sur FlexPDF, ${newUser.name} !`);
-    }
+    // 3. New user registration (no default photo)
+    const newUser: UserProfile = {
+      id: `user_${Date.now()}`,
+      name: email.split('@')[0],
+      email: email.trim(),
+      avatar: '',
+      role,
+      subscription: {
+        planId: role === 'enterprise' ? 'enterprise' : role === 'pro' ? 'pro_monthly' : role === 'admin' ? 'enterprise' : 'free',
+        status: 'active',
+        currentPeriodEnd: '2026-09-29',
+        cancelAtPeriodEnd: false,
+        renewsOn: '2026-09-29',
+        price: role === 'enterprise' ? 99 : role === 'pro' ? 9 : role === 'admin' ? 99 : 0,
+        billingInterval: role === 'enterprise' || role === 'admin' ? 'year' : role === 'pro' ? 'month' : 'free',
+      },
+      createdAt: new Date().toISOString().split('T')[0],
+      apiKey: `flex_live_${Math.random().toString(36).substr(2, 12)}`,
+    };
+    setAllUsers((prev) => [...prev, newUser]);
+    setUser(newUser);
+    try {
+      localStorage.setItem('flexpdf_active_user', JSON.stringify(newUser));
+    } catch (err) {}
+    addNotification('success', 'Compte Créé !', `Bienvenue sur FlexPDF, ${newUser.name} !`);
     setIsAuthModalOpen(false);
   };
 
   const logout = () => {
     setUser(null);
+    try {
+      localStorage.removeItem('flexpdf_active_user');
+    } catch (err) {}
     addNotification('info', 'Déconnexion Réussie', 'Vous naviguez maintenant en mode visiteur public.');
   };
 
   const switchDemoUser = (role: 'free' | 'pro' | 'admin') => {
     if (role === 'admin') {
       setUser(INITIAL_SYSTEM_USERS[0]);
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(INITIAL_SYSTEM_USERS[0]));
+      } catch (err) {}
       addNotification('success', `Profil Actif : ${INITIAL_SYSTEM_USERS[0].name}`, 'Connecté en tant que Super Admin.');
       return;
     }
@@ -658,13 +708,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existing = allUsers.find((u) => u.role === targetRole);
     if (existing) {
       setUser(existing);
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(existing));
+      } catch (err) {}
       addNotification('success', `Profil Actif : ${existing.name}`, `Connecté en tant que ${existing.name}.`);
     } else {
       const dynamicUser: UserProfile = {
         id: `usr_${Date.now()}`,
         name: role === 'pro' ? 'Membre Pro' : 'Utilisateur',
         email: `${targetRole}@flexpdf.app`,
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
+        avatar: '',
         role: targetRole,
         subscription: {
           planId: role === 'pro' ? 'pro_monthly' : 'free',
@@ -680,6 +733,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setAllUsers((prev) => [dynamicUser, ...prev]);
       setUser(dynamicUser);
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(dynamicUser));
+      } catch (err) {}
       addNotification('success', `Profil Actif : ${dynamicUser.name}`, `Connecté en tant que ${dynamicUser.name}.`);
     }
   };
@@ -827,7 +883,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `user_${Date.now()}`,
         name: targetName,
         email: targetEmail,
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+        avatar: '',
         role: planId === 'enterprise' ? 'admin' : 'pro',
         subscription: updatedSub,
         createdAt: startDate,
@@ -840,6 +896,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setAllUsers((prev) => [...prev, newUser]);
       setUser(newUser);
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(newUser));
+      } catch (err) {}
     } else {
       const updatedUser: UserProfile = {
         ...user,
@@ -853,6 +912,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setUser(updatedUser);
       setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+      try {
+        localStorage.setItem('flexpdf_active_user', JSON.stringify(updatedUser));
+      } catch (err) {}
     }
 
     const subtotal = Number((finalPrice / 1.2).toFixed(2));
@@ -1016,7 +1078,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...updates,
     };
     setUser(updatedUser);
-    setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    setAllUsers((prev) => {
+      const exists = prev.some((u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+      const nextUsers = exists
+        ? prev.map((u) => (u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase() ? updatedUser : u))
+        : [updatedUser, ...prev];
+      try {
+        localStorage.setItem('flexpdf_users', JSON.stringify(nextUsers));
+      } catch (err) {
+        console.warn('Failed to save users in localStorage', err);
+      }
+      return nextUsers;
+    });
+    try {
+      localStorage.setItem('flexpdf_active_user', JSON.stringify(updatedUser));
+    } catch (err) {
+      console.warn('Failed to save active user in localStorage', err);
+    }
     addNotification('success', 'Profil Mis à Jour', 'Vos modifications ont été enregistrées avec succès.');
   };
 
