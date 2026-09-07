@@ -630,8 +630,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           currentPeriodEnd: '2026-09-29',
           cancelAtPeriodEnd: false,
           renewsOn: '2026-09-29',
-          price: role === 'enterprise' ? 49 : role === 'pro' ? 9 : role === 'admin' ? 99 : 0,
-          billingInterval: role === 'enterprise' || role === 'pro' ? 'month' : role === 'admin' ? 'year' : 'free',
+          price: role === 'enterprise' ? 99 : role === 'pro' ? 9 : role === 'admin' ? 99 : 0,
+          billingInterval: role === 'enterprise' || role === 'admin' ? 'year' : role === 'pro' ? 'month' : 'free',
         },
         createdAt: new Date().toISOString().split('T')[0],
         apiKey: `flex_live_${Math.random().toString(36).substr(2, 12)}`,
@@ -700,7 +700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsSasPayCheckoutOpen(false);
     setIsStripeCheckoutOpen(false);
 
-    const price = planId === 'enterprise' ? 39 : planId === 'pro_annual' ? 79 : siteSettings.monthlyPrice || 9;
+    const price = planId === 'enterprise' ? 99 : planId === 'pro_annual' ? 79 : siteSettings.monthlyPrice || 9;
     const customer = {
       name: user?.name || 'Client FlexPDF',
       email: user?.email || 'client@flexpdf.com',

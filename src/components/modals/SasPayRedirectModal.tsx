@@ -58,7 +58,7 @@ export const SasPayRedirectModal: React.FC<SasPayRedirectModalProps> = ({
     : 'FlexPDF Pro Mensuel';
 
   const planPrice = planId === 'enterprise'
-    ? '$39 / mois (25 500 XOF)'
+    ? '$99 / an (64 900 XOF)'
     : planId === 'pro_annual'
     ? '$79 / an (51 800 XOF)'
     : '$9 / mois (5 900 XOF)';
