@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   User,
   Clock,
@@ -24,6 +24,9 @@ import {
   RotateCcw,
   CheckCircle2,
   FileCode2,
+  Upload,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { useApp } from '../../context/AppContext';
@@ -63,8 +66,66 @@ export const UserDashboard: React.FC = () => {
   // Profile form state
   const [editName, setEditName] = useState(user?.name || '');
   const [editAvatar, setEditAvatar] = useState(user?.avatar || '');
+  const [isDraggingAvatar, setIsDraggingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  const processAvatarFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addNotification('error', 'Format non supporté', 'Veuillez sélectionner un fichier image valide (JPG, PNG, WebP).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      addNotification('error', 'Fichier trop lourd', 'La photo ne doit pas dépasser 10 Mo.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 300;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Center crop square
+        const minDim = Math.min(img.width, img.height);
+        const startX = (img.width - minDim) / 2;
+        const startY = (img.height - minDim) / 2;
+
+        ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setEditAvatar(dataUrl);
+        addNotification('success', 'Photo chargée', 'Cliquez sur « Enregistrer les Modifications » pour valider votre nouveau profil.');
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processAvatarFile(file);
+    }
+    // reset input value so re-selecting same file triggers change
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  const handleAvatarDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingAvatar(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processAvatarFile(file);
+    }
+  };
 
   // Support ticket form state
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
@@ -199,12 +260,15 @@ export const UserDashboard: React.FC = () => {
       {/* Profile & Plan Header */}
       <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="relative">
+          <div className="relative group cursor-pointer" onClick={() => setActiveTab('settings')} title="Cliquer pour changer la photo de profil">
             <img
               src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
               alt={user?.name || 'User'}
-              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-indigo-500/10 shadow-sm"
+              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-indigo-500/10 shadow-sm transition-transform group-hover:scale-105"
             />
+            <div className="absolute inset-0 bg-slate-900/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white">
+              <Camera className="w-4 h-4" />
+            </div>
             {user?.role === 'pro' && (
               <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-amber-500 text-white shadow-xs">
                 <Crown className="w-3.5 h-3.5" />
@@ -740,14 +804,86 @@ export const UserDashboard: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">URL Avatar / Photo</label>
-                <input
-                  type="url"
-                  value={editAvatar}
-                  onChange={(e) => setEditAvatar(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
-                />
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Photo de Profil
+                </label>
+
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingAvatar(true);
+                  }}
+                  onDragLeave={() => setIsDraggingAvatar(false)}
+                  onDrop={handleAvatarDrop}
+                  className={`p-4 sm:p-5 rounded-2xl border-2 border-dashed transition-all flex flex-col sm:flex-row items-center gap-4 ${
+                    isDraggingAvatar
+                      ? 'border-indigo-500 bg-indigo-50/80 shadow-xs scale-[1.01]'
+                      : 'border-slate-200 bg-slate-50/70 hover:border-slate-300'
+                  }`}
+                >
+                  {/* Photo Preview with Hover Change Trigger */}
+                  <div className="relative group shrink-0">
+                    <img
+                      src={editAvatar || user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                      alt="Aperçu avatar"
+                      className="w-20 h-20 rounded-2xl object-cover ring-2 ring-indigo-500/20 shadow-sm transition-transform group-hover:scale-105"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute inset-0 bg-slate-900/50 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white cursor-pointer text-[10px] font-semibold gap-1"
+                      title="Changer la photo"
+                    >
+                      <Camera className="w-5 h-5" />
+                      <span>Modifier</span>
+                    </button>
+                  </div>
+
+                  {/* Upload Controls & Instructions */}
+                  <div className="flex-1 text-center sm:text-left space-y-2">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 flex items-center justify-center sm:justify-start gap-1.5">
+                        <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Importer une photo depuis votre appareil</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Glissez-déposez votre image ici ou parcourez vos dossiers. Formats : JPG, PNG, WebP (Max 10 Mo).
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={handleAvatarFileChange}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs hover:shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Choisir un fichier</span>
+                      </button>
+
+                      {editAvatar && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultAvatar = `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`;
+                            setEditAvatar(defaultAvatar);
+                          }}
+                          className="px-3 py-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Réinitialiser par défaut
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <button
