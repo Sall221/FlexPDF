@@ -152,7 +152,7 @@ saspayRouter.get('/config', (req: Request, res: Response) => {
   const isKeyConfigured = Boolean(key && key.length > 5);
   const isTestKey = key.startsWith('sk_test_');
   const env = process.env.SASPAY_ENVIRONMENT || (isTestKey ? 'sandbox' : isKeyConfigured ? 'live' : 'sandbox');
-  const baseUrl = process.env.SASPAY_BASE_URL || 'https://api.saspay.me/v1';
+  const baseUrl = process.env.SASPAY_BASE_URL || 'https://api.saspay.me/api/v1';
 
   res.json({
     status: 'ok',
@@ -274,56 +274,85 @@ saspayRouter.post('/initiate', async (req: Request, res: Response) => {
       }
     }
 
-    // Call official SasPay SoftPay API if live/test secret key is provided
+    // Call official SasPay Checkout Sessions API (per official docs: POST /api/v1/checkout-sessions/)
     let livePaymentUrl: string | undefined;
     let liveSasPayData: any = null;
+    let sasPayErrorDetail: string | undefined;
 
     if (activeKey && activeKey.startsWith('sk_')) {
       try {
-        const idempotencyKey = crypto.randomUUID ? crypto.randomUUID() : `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-        const cleanPhone = (data.customer.phone || data.mobileMoney?.phoneNumber || '221771234567').replace(/[^0-9]/g, '');
+        const cleanPhone = (data.customer.phone || data.mobileMoney?.phoneNumber || '').replace(/[^0-9+]/g, '');
 
-        const sasPayApiPayload = {
-          amount: currency === 'XOF' ? amountXOF : amountUSD,
-          currency: currency === 'USD' ? 'USD' : 'XOF',
+        // Amount formatted as decimal string per SasPay spec (e.g. "5900.00" or "9.00")
+        const amountFormatted = (currency === 'XOF' ? amountXOF : amountUSD).toFixed(2);
+        const sasPayCurrency = currency === 'USD' ? 'USD' : 'XOF';
+
+        const sasPayApiPayload: any = {
+          amount: amountFormatted,
+          currency: sasPayCurrency,
           description: `Abonnement FlexPDF Pro (${data.planId || 'Mensuel'})`,
           customer_name: data.customer.name || 'Client FlexPDF',
           customer_email: data.customer.email,
-          customer_phone: cleanPhone || '221771234567',
-          redirect_url: data.returnUrl || 'https://flex-pdf.netlify.app/payment/success',
-          webhook_url: 'https://flex-pdf.netlify.app/webhooks/saspay',
-          reference: reference,
+          return_url: data.returnUrl || 'https://flex-pdf.netlify.app/?payment_status=success',
+          metadata: {
+            planId: data.planId,
+            reference: reference,
+            paymentMethod: data.paymentMethod,
+          },
         };
 
-        const apiEndpoint = `${process.env.SASPAY_BASE_URL || 'https://api.saspay.me/api/v1'}/payments/softpay/initialize/`;
+        if (cleanPhone) {
+          sasPayApiPayload.customer_phone = cleanPhone;
+        }
+
+        const baseUrl = (process.env.SASPAY_BASE_URL || 'https://api.saspay.me/api/v1').replace(/\/$/, '');
+        const apiEndpoint = `${baseUrl}/checkout-sessions/`;
+
+        console.log(`[SasPay Gateway] Creating checkout session on ${apiEndpoint} with amount: ${amountFormatted} ${sasPayCurrency}`);
         
         const response = await fetch(apiEndpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${activeKey}`,
             'Content-Type': 'application/json',
-            'Idempotency-Key': idempotencyKey,
           },
           body: JSON.stringify(sasPayApiPayload),
         });
 
         if (response.ok) {
           liveSasPayData = await response.json();
-          if (liveSasPayData?.data?.payment_url || liveSasPayData?.data?.checkout_url) {
-            livePaymentUrl = liveSasPayData.data.payment_url || liveSasPayData.data.checkout_url;
+          const sessionObj = liveSasPayData?.data || liveSasPayData;
+          if (sessionObj?.checkout_url || sessionObj?.payment_url) {
+            livePaymentUrl = sessionObj.checkout_url || sessionObj.payment_url;
+            console.log(`[SasPay Gateway] Successfully obtained live checkout_url: ${livePaymentUrl}`);
           }
         } else {
           const errBody = await response.text();
           console.warn('[SasPay Gateway] Remote API notice:', response.status, errBody);
+          try {
+            const errJson = JSON.parse(errBody);
+            sasPayErrorDetail = errJson.message || errJson.error || `Erreur SasPay (${response.status})`;
+          } catch {
+            sasPayErrorDetail = `Erreur SasPay HTTP ${response.status}: ${errBody.slice(0, 100)}`;
+          }
         }
       } catch (gatewayFetchErr: any) {
-        console.warn('[SasPay Gateway] Direct API call handled via local engine:', gatewayFetchErr.message);
+        console.warn('[SasPay Gateway] Direct API call network error:', gatewayFetchErr.message);
+        sasPayErrorDetail = `Erreur de connexion réseau à SasPay: ${gatewayFetchErr.message}`;
       }
     }
 
-    // Ensure a valid SasPay checkout redirection URL is always available
+    // If live payment URL could not be obtained, report error cleanly instead of redirecting to a broken URL
     if (!livePaymentUrl) {
-      livePaymentUrl = `https://checkout.saspay.me/pay?ref=${encodeURIComponent(reference)}&amount=${amountXOF}&currency=XOF&plan=${encodeURIComponent(data.planId || 'pro_monthly')}&return_url=${encodeURIComponent(data.returnUrl || 'https://flex-pdf.netlify.app/payment/success')}&email=${encodeURIComponent(data.customer.email)}`;
+      logGatewayAction('/api/saspay/initiate', 'POST', 502, Date.now() - startTime, sasPayErrorDetail || 'Failed to create checkout session');
+      return res.status(502).json({
+        status: 'ERROR',
+        error: sasPayErrorDetail || 'Impossible de créer la session de paiement SasPay auprès de la passerelle.',
+        code: 'SASPAY_SESSION_CREATION_FAILED',
+        reference,
+        amount: amountUSD,
+        currency,
+      });
     }
 
     const transaction: SasPayTransaction = {
@@ -391,6 +420,40 @@ saspayRouter.post('/initiate', async (req: Request, res: Response) => {
 saspayRouter.post('/payments/softpay/initialize', (req: Request, res: Response, next) => {
   // Forward to initiate handler
   return (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next);
+});
+
+// Dedicated official SasPay Hosted Checkout Session Endpoints
+saspayRouter.post('/checkout-session', (req: Request, res: Response, next) => {
+  return (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next);
+});
+
+saspayRouter.post('/checkout-sessions', (req: Request, res: Response, next) => {
+  return (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next);
+});
+
+// GET /api/saspay/checkout-session/:id (Queries live session status from SasPay gateway)
+saspayRouter.get('/checkout-session/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const activeKey = getSasPayKey();
+  const baseUrl = (process.env.SASPAY_BASE_URL || 'https://api.saspay.me/api/v1').replace(/\/$/, '');
+
+  try {
+    const remoteRes = await fetch(`${baseUrl}/checkout-sessions/${id}/`, {
+      headers: {
+        'Authorization': `Bearer ${activeKey}`,
+      },
+    });
+
+    if (remoteRes.ok) {
+      const data = await remoteRes.json();
+      return res.json(data);
+    } else {
+      const err = await remoteRes.text();
+      return res.status(remoteRes.status).json({ error: 'Session de checkout SasPay introuvable.', details: err });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erreur lors de la vérification de la session', details: err.message });
+  }
 });
 
 // 3. GET /api/saspay/status/:transactionId

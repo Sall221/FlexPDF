@@ -35,9 +35,14 @@ export const SasPayRedirectModal: React.FC<SasPayRedirectModalProps> = ({
     if (isOpen && paymentUrl && !isLoading && !error) {
       const timer = setTimeout(() => {
         try {
-          window.location.href = paymentUrl;
+          if (window.top && window.top !== window.self) {
+            window.top.location.href = paymentUrl;
+          } else {
+            window.location.href = paymentUrl;
+          }
         } catch (e) {
-          console.warn('Auto redirect failed', e);
+          // If top-navigation is blocked by iframe sandbox, fallback to current window or window.open
+          window.location.href = paymentUrl;
         }
       }, 750);
       return () => clearTimeout(timer);
@@ -125,14 +130,20 @@ export const SasPayRedirectModal: React.FC<SasPayRedirectModalProps> = ({
         ) : (
           <div className="space-y-3">
             {paymentUrl ? (
-              <a
-                href={paymentUrl}
-                target="_self"
-                className="w-full py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer group"
-              >
-                <span>Continuer vers le Paiement SasPay</span>
-                <ExternalLink className="w-4 h-4 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
-              </a>
+              <div className="space-y-2">
+                <a
+                  href={paymentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer group"
+                >
+                  <span>Accéder au Paiement SasPay</span>
+                  <ExternalLink className="w-4 h-4 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+                </a>
+                <p className="text-[11px] text-emerald-600 font-medium">
+                  ✓ Session de paiement SasPay active et prête
+                </p>
+              </div>
             ) : (
               <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 py-2">
                 <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />

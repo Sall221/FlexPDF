@@ -39,6 +39,12 @@ async function startServer() {
   app.post('/api/payments/softpay/initialize', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
   app.post('/api/payments/softpay/initialize/', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
 
+  // Direct checkout-sessions endpoints matching official SasPay docs
+  app.post('/checkout-sessions', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+  app.post('/checkout-sessions/', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+  app.post('/api/checkout-sessions', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+  app.post('/api/checkout-sessions/', (req, res, next) => (saspayRouter as any).handle(Object.assign(req, { url: '/initiate' }), res, next));
+
   // Mount SasPay payment gateway routes
   app.use('/api/saspay', saspayRouter);
 
