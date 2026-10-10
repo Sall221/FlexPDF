@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import confetti from 'canvas-confetti';
+import { jsPDF } from 'jspdf';
 import {
   Upload,
   FileText,
@@ -13,6 +14,7 @@ import {
   Share2,
   RotateCw,
   Eye,
+  EyeOff,
   Copy,
   Check,
   Zap,
@@ -28,6 +30,7 @@ import {
   Archive,
   RefreshCw,
   Crown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { ToolDefinition } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -38,12 +41,20 @@ import {
   imagesToPdf,
   pdfToWordDocx,
   wordToPdf,
-  rotatePdfPages,
+  rotateAndOrganizePdf,
+  PageOrganizeConfig,
   watermarkPdf,
+  protectPdfWithPassword,
   extractPdfText,
   ProcessingProgress,
 } from '../../services/pdfEngine';
-import { convertImages, convertPdfToImages, ConvertedImageResult } from '../../services/imageEngine';
+import {
+  convertImages,
+  convertPdfToImages,
+  ConvertedImageResult,
+  SupportedImageFormat,
+} from '../../services/imageEngine';
+import { getPdfPageCount } from '../../services/pdfRenderer';
 
 interface ToolRunnerProps {
   tool: ToolDefinition;
@@ -65,7 +76,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState<ProcessingProgress>({ step: 'Preparing...', percent: 0 });
+  const [progress, setProgress] = useState<ProcessingProgress>({ step: 'Préparation...', percent: 0 });
   const [result, setResult] = useState<{
     blob?: Blob;
     fileName?: string;
@@ -83,58 +94,148 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
   const [copiedText, setCopiedText] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Dynamic PDF Page metadata
+  const [detectedPageCount, setDetectedPageCount] = useState<number>(1);
+
   // Tool Specific Options
+  // 1. Compress
   const [compressLevel, setCompressLevel] = useState<'low' | 'recommended' | 'extreme'>('recommended');
-  const [splitMode, setSplitMode] = useState<'spot-pages' | 'extract-range'>('spot-pages');
+
+  // 2. Split
+  const [splitMode, setSplitMode] = useState<'spot-pages' | 'extract-range' | 'split-all'>('spot-pages');
   const [selectedPages, setSelectedPages] = useState<number[]>([1]);
-  const [pageRangeInput, setPageRangeInput] = useState('1-3');
-  const [imageTargetFormat, setImageTargetFormat] = useState<'jpg' | 'png' | 'webp' | 'gif' | 'bmp' | 'ico'>('png');
+  const [pageRangeInput, setPageRangeInput] = useState('1');
+
+  // 3. Image Converter
+  const [imageTargetFormat, setImageTargetFormat] = useState<SupportedImageFormat>('png');
   const [imageQuality, setImageQuality] = useState(0.9);
   const [imageResizeMode, setImageResizeMode] = useState<'original' | '50%' | '75%' | '150%' | '200%' | 'custom'>('original');
   const [customWidth, setCustomWidth] = useState(1200);
+
+  // 4. Image to PDF
   const [imageToPdfOrientation, setImageToPdfOrientation] = useState<'auto' | 'portrait' | 'landscape'>('auto');
   const [imageToPdfPageSize, setImageToPdfPageSize] = useState<'fit' | 'a4' | 'letter'>('a4');
   const [imageToPdfMargin, setImageToPdfMargin] = useState<'none' | 'small' | 'big'>('small');
-  const [rotateAngle, setRotateAngle] = useState(90);
-  const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
-  const [watermarkOpacity, setWatermarkOpacity] = useState(0.35);
-  const [pdfPassword, setPdfPassword] = useState('');
 
-  // Sample files helper to let user test immediately
+  // 5. PDF to Image
+  const [pdfToImageFormat, setPdfToImageFormat] = useState<'jpg' | 'png' | 'webp'>('jpg');
+  const [pdfToImageQuality, setPdfToImageQuality] = useState(0.92);
+  const [pdfToImageDpi, setPdfToImageDpi] = useState<number>(2.0);
+
+  // 6. Rotate & Organize
+  const [pageOrganizeList, setPageOrganizeList] = useState<{ id: number; pageIndex: number; rotation: number }[]>([]);
+
+  // 7. Watermark
+  const [watermarkText, setWatermarkText] = useState('CONFIDENTIEL');
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.35);
+  const [watermarkFontSize, setWatermarkFontSize] = useState(38);
+  const [watermarkColor, setWatermarkColor] = useState<'red' | 'indigo' | 'slate' | 'amber' | 'emerald'>('red');
+  const [watermarkPosition, setWatermarkPosition] = useState<'diagonal' | 'header' | 'footer' | 'center'>('diagonal');
+
+  // 8. Protect
+  const [pdfPassword, setPdfPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // When files change, inspect the first file if it's a PDF to get page count and organize structure
+  useEffect(() => {
+    if (files.length > 0 && files[0].name.toLowerCase().endsWith('.pdf')) {
+      getPdfPageCount(files[0]).then((count) => {
+        setDetectedPageCount(count);
+        // Setup default organize list
+        setPageOrganizeList(
+          Array.from({ length: count }, (_, i) => ({
+            id: i,
+            pageIndex: i,
+            rotation: 0,
+          }))
+        );
+        // Setup default selected pages
+        if (selectedPages.length === 0 || selectedPages[0] > count) {
+          setSelectedPages([1]);
+        }
+        setPageRangeInput(`1-${Math.min(count, 3)}`);
+      });
+    } else {
+      setDetectedPageCount(1);
+      setPageOrganizeList([]);
+    }
+  }, [files]);
+
+  // Load sample test files
   const handleLoadSampleFiles = () => {
-    if (tool.id.includes('image') || tool.id === 'image-to-pdf') {
-      // Create test canvas image
+    if (tool.id.includes('image') && tool.id !== 'pdf-to-image') {
       const canvas = document.createElement('canvas');
-      canvas.width = 600;
-      canvas.height = 400;
+      canvas.width = 800;
+      canvas.height = 600;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = '#6366F1';
-        ctx.fillRect(0, 0, 600, 400);
+        ctx.fillStyle = '#4F46E5';
+        ctx.fillRect(0, 0, 800, 600);
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 32px sans-serif';
-        ctx.fillText('FlexPDF Test Asset 1', 120, 210);
+        ctx.font = 'bold 36px sans-serif';
+        ctx.fillText('FlexPDF Test Image Asset', 160, 280);
+        ctx.font = '20px sans-serif';
+        ctx.fillStyle = '#E0E7FF';
+        ctx.fillText('High-resolution sample for format conversion', 180, 330);
       }
       canvas.toBlob((blob) => {
         if (blob) {
-          const sampleFile = new File([blob], 'sample_document_cover.png', { type: 'image/png' });
+          const sampleFile = new File([blob], 'sample_graphic.png', { type: 'image/png' });
           setFiles([sampleFile]);
-          addNotification('info', 'Sample Image Loaded', 'Ready to convert or test with FlexPDF engine.');
+          addNotification('info', 'Fichier image chargé', 'Image de test prête à être traitée.');
         }
       });
+    } else if (tool.id === 'word-to-pdf') {
+      // Create text file pretending to be docx content
+      const sampleBlob = new Blob(['Rapport d\'activité officiel 2026\n\nIntroduction:\nCe document atteste de la conversion haute fidélité.\n\nSection 1: Performance et KPI\nTous les indicateurs respectent scrupuleusement la structure originale.\n\nSection 2: Conclusion\nLe rendu PDF est parfaitement formaté.'], { type: 'text/plain' });
+      const sampleFile = new File([sampleBlob], 'Rapport_Synthese.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      setFiles([sampleFile]);
+      addNotification('info', 'Document Word chargé', 'Fichier Word de test prêt à être converti.');
     } else {
-      // Create sample PDF blob using simple text
-      const samplePdfText = `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n186\n%%EOF`;
-      const blob = new Blob([samplePdfText], { type: 'application/pdf' });
-      const sampleFile1 = new File([blob], 'Quarterly_Report_2026.pdf', { type: 'application/pdf' });
-      const sampleFile2 = new File([blob], 'Financial_Statement_Q3.pdf', { type: 'application/pdf' });
+      // Create authentic multi-page PDF using jsPDF
+      const doc = new jsPDF();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.text('FlexPDF Document de Test Officiel', 20, 30);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.text('Ce document multi-pages permet de tester directement toutes les fonctionnalités :', 20, 45);
+      doc.text('- Fusion, Division ciblée, Compression réelle et Extraction OCR.', 20, 55);
+      doc.text('- Conversion PDF vers Image (haute résolution) et Word (.docx).', 20, 65);
+      doc.setDrawColor(99, 102, 241);
+      doc.setLineWidth(1.5);
+      doc.line(20, 75, 190, 75);
+
+      // Page 2
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Page 2: Analyse Financière & Indicateurs Clés', 20, 30);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.text('Chiffre d\'affaires trimestriel : +34.5%', 20, 45);
+      doc.text('Taux de satisfaction client : 99.8%', 20, 55);
+      doc.text('Toutes les métadonnées et typographies sont scrupuleusement conservées.', 20, 65);
+
+      // Page 3
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('Page 3: Conclusion & Signatures', 20, 30);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.text('Document validé et certifié conforme pour la suite FlexPDF SaaS.', 20, 45);
+
+      const blob = doc.output('blob');
+      const sampleFile1 = new File([blob], 'Document_Audit_2026.pdf', { type: 'application/pdf' });
+      const sampleFile2 = new File([blob], 'Annexe_Financiere_2026.pdf', { type: 'application/pdf' });
 
       if (tool.id === 'merge-pdf') {
         setFiles([sampleFile1, sampleFile2]);
       } else {
         setFiles([sampleFile1]);
       }
-      addNotification('info', 'Sample Document Loaded', `Loaded sample file(s) for ${tool.name}.`);
+      addNotification('info', 'Document PDF multi-pages chargé', `Fichier test de 3 pages chargé pour ${tool.name}.`);
     }
   };
 
@@ -163,20 +264,19 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
   };
 
   const addFiles = (newFiles: File[]) => {
-    const maxFileSize = isUnlimited ? 500 * 1024 * 1024 : 10 * 1024 * 1024; // 10MB free, 500MB pro
+    const maxFileSize = isUnlimited ? 500 * 1024 * 1024 : 10 * 1024 * 1024;
     const oversizedFiles = newFiles.filter((f) => f.size > maxFileSize);
 
     if (oversizedFiles.length > 0) {
       addNotification(
         'error',
         'Taille de fichier dépassée (Max 10 Mo)',
-        `Le fichier "${oversizedFiles[0].name}" (${(oversizedFiles[0].size / (1024 * 1024)).toFixed(1)} Mo) dépasse la limite gratuite de 10 Mo. Passez à Pro pour envoyer jusqu'à 500 Mo.`
+        `Le fichier "${oversizedFiles[0].name}" (${(oversizedFiles[0].size / (1024 * 1024)).toFixed(1)} Mo) dépasse la limite de 10 Mo. Passez à Pro pour envoyer jusqu'à 500 Mo.`
       );
       openStripeCheckout('pro_monthly');
       return;
     }
 
-    // Check max files
     if (tool.maxFiles === 1) {
       setFiles([newFiles[0]]);
     } else {
@@ -218,23 +318,51 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
     });
   };
 
-  // Main Conversion Dispatcher
+  // Reorder organize list pages
+  const moveOrganizePage = (index: number, direction: 'up' | 'down') => {
+    setPageOrganizeList((prev) => {
+      const copy = [...prev];
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target >= 0 && target < copy.length) {
+        const temp = copy[index];
+        copy[index] = copy[target];
+        copy[target] = temp;
+      }
+      return copy;
+    });
+  };
+
+  // Rotate single organize page
+  const rotateOrganizePage = (index: number) => {
+    setPageOrganizeList((prev) => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        rotation: (copy[index].rotation + 90) % 360,
+      };
+      return copy;
+    });
+  };
+
+  // -------------------------------------------------------------------------
+  // MAIN EXECUTION DISPATCHER
+  // -------------------------------------------------------------------------
   const handleExecute = async () => {
     if (files.length === 0) {
-      addNotification('warning', 'No Files Selected', 'Please upload at least one file to process.');
+      addNotification('warning', 'Aucun fichier', 'Veuillez sélectionner au moins un fichier.');
       return;
     }
 
-    // Daily Quota Check
     const allowed = consumeQuota(tool.id);
     if (!allowed) {
       return;
     }
 
     setIsProcessing(true);
-    setProgress({ step: 'Initializing engine...', percent: 5 });
+    setProgress({ step: 'Initialisation du moteur de traitement...', percent: 5 });
 
     try {
+      // 1. MERGE PDF
       if (tool.id === 'merge-pdf') {
         const res = await mergePdfFiles(files, setProgress);
         const url = URL.createObjectURL(res.blob);
@@ -251,13 +379,16 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
         addHistoryRecord({
           toolId: tool.id,
           toolName: tool.name,
-          originalFileName: `${files.length} PDF Documents`,
+          originalFileName: `${files.length} Documents PDF`,
           originalSize: totalOriginal,
           resultFileName: res.fileName,
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'split-pdf') {
+      }
+
+      // 2. SPOT & SPLIT PDF
+      else if (tool.id === 'split-pdf') {
         const res = await splitOrExtractPdf({
           file: files[0],
           mode: splitMode,
@@ -273,6 +404,9 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           size: res.size,
           originalSize: files[0].size,
           url,
+          zipBlob: res.isZip ? res.blob : undefined,
+          zipFileName: res.isZip ? res.fileName : undefined,
+          zipUrl: res.isZip ? url : undefined,
         });
 
         addHistoryRecord({
@@ -284,7 +418,10 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'compress-pdf') {
+      }
+
+      // 3. COMPRESS PDF
+      else if (tool.id === 'compress-pdf') {
         const res = await compressPdf({
           file: files[0],
           level: compressLevel,
@@ -311,8 +448,17 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           savingsPercentage: res.savings,
           downloadUrl: url,
         });
-      } else if (tool.id === 'pdf-to-image') {
-        const res = await convertPdfToImages(files[0], 'jpg', 0.9, 2, setProgress);
+      }
+
+      // 4. PDF TO IMAGE
+      else if (tool.id === 'pdf-to-image') {
+        const res = await convertPdfToImages(
+          files[0],
+          pdfToImageFormat,
+          pdfToImageQuality,
+          pdfToImageDpi,
+          setProgress
+        );
         const zipUrl = URL.createObjectURL(res.zipBlob);
 
         setResult({
@@ -333,7 +479,10 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: res.zipBlob.size,
           downloadUrl: zipUrl,
         });
-      } else if (tool.id === 'image-to-pdf') {
+      }
+
+      // 5. IMAGE TO PDF
+      else if (tool.id === 'image-to-pdf') {
         const res = await imagesToPdf({
           files,
           orientation: imageToPdfOrientation,
@@ -355,13 +504,16 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
         addHistoryRecord({
           toolId: tool.id,
           toolName: tool.name,
-          originalFileName: `${files.length} Images`,
+          originalFileName: `${files.length} Image(s)`,
           originalSize: totalOriginal,
           resultFileName: res.fileName,
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'pdf-to-word') {
+      }
+
+      // 6. PDF TO WORD (.DOCX)
+      else if (tool.id === 'pdf-to-word') {
         const res = await pdfToWordDocx(files[0], setProgress);
         const url = URL.createObjectURL(res.blob);
 
@@ -382,7 +534,10 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'word-to-pdf') {
+      }
+
+      // 7. WORD TO PDF
+      else if (tool.id === 'word-to-pdf') {
         const res = await wordToPdf(files[0], setProgress);
         const url = URL.createObjectURL(res.blob);
 
@@ -403,7 +558,10 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'image-converter') {
+      }
+
+      // 8. IMAGE FORMAT CONVERTER
+      else if (tool.id === 'image-converter') {
         const res = await convertImages({
           files,
           targetFormat: imageTargetFormat,
@@ -446,8 +604,16 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: totalResult,
           downloadUrl: primaryUrl || zipUrl,
         });
-      } else if (tool.id === 'rotate-pdf') {
-        const res = await rotatePdfPages(files[0], rotateAngle, setProgress);
+      }
+
+      // 9. ROTATE & ORGANIZE PDF
+      else if (tool.id === 'rotate-pdf') {
+        const configs: PageOrganizeConfig[] = pageOrganizeList.map((p) => ({
+          pageIndex: p.pageIndex,
+          rotation: p.rotation,
+        }));
+
+        const res = await rotateAndOrganizePdf(files[0], configs, setProgress);
         const url = URL.createObjectURL(res.blob);
 
         setResult({
@@ -467,8 +633,19 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'watermark-pdf') {
-        const res = await watermarkPdf(files[0], watermarkText, watermarkOpacity, 42, setProgress);
+      }
+
+      // 10. WATERMARK PDF
+      else if (tool.id === 'watermark-pdf') {
+        const res = await watermarkPdf({
+          file: files[0],
+          text: watermarkText,
+          opacity: watermarkOpacity,
+          fontSize: watermarkFontSize,
+          color: watermarkColor,
+          position: watermarkPosition,
+          onProgress: setProgress,
+        });
         const url = URL.createObjectURL(res.blob);
 
         setResult({
@@ -488,14 +665,20 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'protect-pdf') {
-        // Password encryption simulated with signature metadata
-        const res = await watermarkPdf(files[0], `PROTECTED [${pdfPassword || 'ENCRYPTED'}]`, 0.05, 14, setProgress);
+      }
+
+      // 11. PROTECT PDF (AUTHENTIC AES-256 ENCRYPTION)
+      else if (tool.id === 'protect-pdf') {
+        if (!pdfPassword || pdfPassword.trim().length === 0) {
+          throw new Error('Veuillez saisir un mot de passe pour chiffrer le document.');
+        }
+
+        const res = await protectPdfWithPassword(files[0], pdfPassword, setProgress);
         const url = URL.createObjectURL(res.blob);
 
         setResult({
           blob: res.blob,
-          fileName: `protected_${files[0].name}`,
+          fileName: res.fileName,
           size: res.size,
           originalSize: files[0].size,
           url,
@@ -506,11 +689,14 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           toolName: tool.name,
           originalFileName: files[0].name,
           originalSize: files[0].size,
-          resultFileName: `protected_${files[0].name}`,
+          resultFileName: res.fileName,
           resultSize: res.size,
           downloadUrl: url,
         });
-      } else if (tool.id === 'ocr-pdf') {
+      }
+
+      // 12. EXTRACT TEXT & OCR
+      else if (tool.id === 'ocr-pdf') {
         const res = await extractPdfText(files[0], setProgress);
         const blob = new Blob([res.text], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -536,10 +722,10 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
       }
 
       triggerConfetti();
-      addNotification('success', 'Conversion Complete! 🚀', `Successfully processed with ${tool.name}.`);
+      addNotification('success', 'Traitement réussi ! 🚀', `Opération complétée avec succès avec ${tool.name}.`);
     } catch (err: any) {
       console.error(err);
-      addNotification('error', 'Processing Failed', err.message || 'An error occurred during conversion.');
+      addNotification('error', 'Erreur de traitement', err.message || 'Une erreur est survenue lors de l\'exécution.');
     } finally {
       setIsProcessing(false);
     }
@@ -550,7 +736,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
       navigator.clipboard.writeText(result.textResult);
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 2000);
-      addNotification('success', 'Copied to Clipboard', 'Extracted OCR text copied.');
+      addNotification('success', 'Texte copié !', 'Le texte extrait a été copié dans le presse-papiers.');
     }
   };
 
@@ -576,18 +762,18 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 text-slate-500" />
-          <span>Back to All Tools</span>
+          <span>Retour aux outils</span>
         </button>
 
         {/* Quota Tracker Pill */}
         <div className="flex items-center gap-2 text-xs">
           {isUnlimited ? (
             <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold flex items-center gap-1">
-              <Crown className="w-3.5 h-3.5 text-amber-600" /> Pro Unlimited
+              <Crown className="w-3.5 h-3.5 text-amber-600" /> Forfait Pro Illimité
             </span>
           ) : (
             <span className="px-3 py-1 rounded-full bg-white text-slate-600 border border-slate-200 shadow-2xs font-medium">
-              Free Quota: <strong className="text-slate-900">{remainingDailyQuota}</strong> tasks left today
+              Quota gratuit : <strong className="text-slate-900">{remainingDailyQuota}</strong> tâches restantes aujourd'hui
             </span>
           )}
         </div>
@@ -614,7 +800,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
             className="self-start md:self-auto shrink-0 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            Load Sample Test File
+            Charger un fichier de test
           </button>
         )}
       </div>
@@ -639,99 +825,81 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={tool.accept}
                 multiple={tool.maxFiles > 1}
+                accept={tool.accept}
                 onChange={handleFileInputChange}
                 className="hidden"
               />
-
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 mx-auto flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center mb-4 ring-8 ring-indigo-50/50 transition-transform group-hover:scale-105">
                 <Upload className="w-8 h-8" />
               </div>
-
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1">
-                Choose file{tool.maxFiles > 1 ? 's' : ''} or drag & drop here
+              <h3 className="text-base font-bold text-slate-800">
+                Glissez-déposez vos fichiers ici, ou <span className="text-indigo-600 underline">parcourez</span>
               </h3>
-              <p className="text-xs text-slate-500 mb-4">
-                Supported formats: <strong className="text-slate-700">{tool.accept}</strong> (Up to{' '}
-                {isUnlimited ? '500MB' : '10MB'} per file)
+              <p className="text-xs text-slate-400 mt-1.5">
+                Supporte {tool.accept.replace(/\*/g, '')} • Jusqu'à {tool.maxFiles} fichier(s) • Max 10 Mo par fichier
               </p>
-
-              <button
-                type="button"
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white text-xs font-bold shadow-sm hover:shadow-md transition-all hover:scale-105"
-              >
-                Select {tool.maxFiles > 1 ? 'Files' : 'File'}
-              </button>
             </div>
 
-            {/* Uploaded Files Queue List */}
+            {/* Selected Files List */}
             {files.length > 0 && (
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Uploaded Files ({files.length}{tool.maxFiles > 1 ? ` / ${isUnlimited ? 50 : tool.maxFiles}` : ''})
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>
+                    Fichiers sélectionnés ({files.length} / {tool.maxFiles})
                   </span>
                   <button
                     onClick={() => setFiles([])}
-                    className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
+                    className="text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
                   >
-                    Clear All
+                    Tout effacer
                   </button>
                 </div>
 
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {files.map((file, idx) => (
                     <div
-                      key={`${file.name}_${idx}`}
-                      className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 group"
+                      key={idx}
+                      className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 text-xs"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 truncate">{file.name}</p>
-                          <p className="text-[10px] text-slate-500">{formatFileSize(file.size)}</p>
-                        </div>
+                      <div className="flex items-center gap-2.5 truncate">
+                        <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span className="font-semibold text-slate-800 truncate">{file.name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          ({formatFileSize(file.size)})
+                        </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        {tool.maxFiles > 1 && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        {tool.maxFiles > 1 && files.length > 1 && (
                           <>
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveFile(idx, 'up');
-                              }}
+                              type="button"
                               disabled={idx === 0}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-30"
-                              title="Move Up"
+                              onClick={() => moveFile(idx, 'up')}
+                              className="p-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
+                              title="Déplacer vers le haut"
                             >
                               <MoveUp className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveFile(idx, 'down');
-                              }}
+                              type="button"
                               disabled={idx === files.length - 1}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-30"
-                              title="Move Down"
+                              onClick={() => moveFile(idx, 'down')}
+                              className="p-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
+                              title="Déplacer vers le bas"
                             >
                               <MoveDown className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeFile(idx);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
-                          title="Remove"
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          className="p-1 rounded hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                          title="Supprimer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -746,18 +914,18 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
             <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-5">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Sliders className="w-4 h-4 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Tool Options</h3>
+                <h3 className="text-sm font-bold text-slate-900">Options de traitement</h3>
               </div>
 
-              {/* Compress Options */}
+              {/* 1. Compress Options */}
               {tool.id === 'compress-pdf' && (
                 <div className="space-y-3">
-                  <label className="text-xs font-semibold text-slate-700">Compression Level</label>
+                  <label className="text-xs font-semibold text-slate-700">Niveau de compression</label>
                   <div className="space-y-2">
                     {[
-                      { id: 'extreme', label: 'Extreme Compression', desc: 'Lowest size, moderate quality (~70% saved)' },
-                      { id: 'recommended', label: 'Recommended (Optimal)', desc: 'Balanced high quality & small size (~45% saved)' },
-                      { id: 'low', label: 'Low Compression', desc: 'Highest crispness, subtle file reduction (~25% saved)' },
+                      { id: 'extreme', label: 'Compression Maximale', desc: 'Taille minimale (~70% d\'espace gagné)' },
+                      { id: 'recommended', label: 'Recommandée (Optimal)', desc: 'Excellent équilibre qualité / taille (~50% d\'espace gagné)' },
+                      { id: 'low', label: 'Légère / Sans perte', desc: 'Qualité maximale préservée (~20% d\'espace gagné)' },
                     ].map((opt) => (
                       <button
                         key={opt.id}
@@ -780,42 +948,59 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                 </div>
               )}
 
-              {/* Split & Spot PDF Options */}
+              {/* 2. Split & Spot PDF Options */}
               {tool.id === 'split-pdf' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Extraction Mode</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setSplitMode('spot-pages')}
-                        className={`p-2 rounded-xl text-xs font-bold border transition-all ${
-                          splitMode === 'spot-pages'
-                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-2xs'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        Spot Pages
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSplitMode('extract-range')}
-                        className={`p-2 rounded-xl text-xs font-bold border transition-all ${
-                          splitMode === 'extract-range'
-                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-2xs'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        Custom Range
-                      </button>
+                    <label className="text-xs font-semibold text-slate-700">Mode de découpe</label>
+                    <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                      {[
+                        { id: 'spot-pages', label: 'Pages ciblées' },
+                        { id: 'extract-range', label: 'Plage' },
+                        { id: 'split-all', label: 'Chaque page (ZIP)' },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setSplitMode(m.id as any)}
+                          className={`p-2 rounded-xl text-[11px] font-bold border transition-all ${
+                            splitMode === m.id
+                              ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-2xs'
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  {splitMode === 'spot-pages' ? (
+                  {splitMode === 'spot-pages' && (
                     <div>
-                      <label className="text-xs font-semibold text-slate-700">Select Target Pages</label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((page) => {
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-semibold text-slate-700">
+                          Sélectionner les pages ({detectedPageCount} page{detectedPageCount > 1 ? 's' : ''})
+                        </label>
+                        <div className="flex gap-2 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPages(Array.from({ length: detectedPageCount }, (_, i) => i + 1))}
+                            className="text-indigo-600 hover:underline font-semibold"
+                          >
+                            Toutes
+                          </button>
+                          <span>•</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPages([])}
+                            className="text-slate-500 hover:underline font-semibold"
+                          >
+                            Aucune
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-200">
+                        {Array.from({ length: detectedPageCount }, (_, i) => i + 1).map((page) => {
                           const isSelected = selectedPages.includes(page);
                           return (
                             <button
@@ -828,10 +1013,10 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                                   setSelectedPages([...selectedPages, page]);
                                 }
                               }}
-                              className={`w-9 h-9 rounded-xl font-bold text-xs border transition-all ${
+                              className={`w-8 h-8 rounded-lg font-bold text-xs border transition-all ${
                                 isSelected
                                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                               }`}
                             >
                               {page}
@@ -839,34 +1024,50 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                           );
                         })}
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-2">Click to toggle pages to extract.</p>
+                      <p className="text-[10px] text-slate-500 mt-1.5">
+                        Cliquez sur les numéros pour inclure ou exclure les pages du fichier résultant.
+                      </p>
                     </div>
-                  ) : (
+                  )}
+
+                  {splitMode === 'extract-range' && (
                     <div>
-                      <label className="text-xs font-semibold text-slate-700">Page Ranges (e.g. 1-3, 5)</label>
+                      <label className="text-xs font-semibold text-slate-700">Plage de pages (ex: 1-3, 5)</label>
                       <input
                         type="text"
                         value={pageRangeInput}
                         onChange={(e) => setPageRangeInput(e.target.value)}
-                        placeholder="1-3, 5, 8"
+                        placeholder={`1-${detectedPageCount}`}
                         className="mt-1.5 w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
                       />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Total détecté dans ce document : {detectedPageCount} page(s).
+                      </p>
+                    </div>
+                  )}
+
+                  {splitMode === 'split-all' && (
+                    <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-900 space-y-1">
+                      <p className="font-bold">Découpe individuelle intégrale</p>
+                      <p className="text-[11px] text-indigo-700 leading-relaxed">
+                        Chaque page du document ({detectedPageCount} pages) sera exportée sous forme de fichier PDF distinct, empaquetée dans une archive ZIP prête à télécharger.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Image Converter Options */}
+              {/* 3. Image Converter Options */}
               {tool.id === 'image-converter' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Target Output Format</label>
-                    <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-                      {['jpg', 'png', 'webp', 'gif', 'bmp', 'ico'].map((fmt) => (
+                    <label className="text-xs font-semibold text-slate-700">Format de sortie cible</label>
+                    <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                      {(['jpg', 'png', 'webp', 'gif', 'bmp', 'ico'] as SupportedImageFormat[]).map((fmt) => (
                         <button
                           key={fmt}
                           type="button"
-                          onClick={() => setImageTargetFormat(fmt as any)}
+                          onClick={() => setImageTargetFormat(fmt)}
                           className={`p-2 rounded-xl text-xs uppercase font-bold border transition-all ${
                             imageTargetFormat === fmt
                               ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-2xs'
@@ -881,7 +1082,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
 
                   <div>
                     <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1">
-                      <span>Quality & Compression</span>
+                      <span>Qualité de compression</span>
                       <span className="text-indigo-600">{Math.round(imageQuality * 100)}%</span>
                     </div>
                     <input
@@ -896,7 +1097,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Resize Scaling</label>
+                    <label className="text-xs font-semibold text-slate-700">Redimensionnement</label>
                     <div className="grid grid-cols-3 gap-1.5 mt-1.5">
                       {['original', '50%', '75%', '150%', '200%'].map((mode) => (
                         <button
@@ -917,11 +1118,64 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                 </div>
               )}
 
-              {/* Image to PDF Options */}
+              {/* 4. PDF to Image Options */}
+              {tool.id === 'pdf-to-image' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Format d'image de sortie</label>
+                    <div className="grid grid-cols-3 gap-2 mt-1.5">
+                      {(['jpg', 'png', 'webp'] as const).map((fmt) => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          onClick={() => setPdfToImageFormat(fmt)}
+                          className={`p-2.5 rounded-xl text-xs uppercase font-bold border transition-all ${
+                            pdfToImageFormat === fmt
+                              ? 'bg-amber-50 border-amber-300 text-amber-800 shadow-2xs'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {fmt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Résolution / Qualité de rendu</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPdfToImageDpi(1.5)}
+                        className={`p-2 rounded-xl text-xs font-semibold border transition-all ${
+                          pdfToImageDpi === 1.5
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                            : 'bg-slate-50 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        Standard (150 DPI)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPdfToImageDpi(2.0)}
+                        className={`p-2 rounded-xl text-xs font-semibold border transition-all ${
+                          pdfToImageDpi === 2.0
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                            : 'bg-slate-50 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        Haute Résolution (300 DPI)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Image to PDF Options */}
               {tool.id === 'image-to-pdf' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Page Orientation</label>
+                    <label className="text-xs font-semibold text-slate-700">Orientation des pages</label>
                     <div className="grid grid-cols-3 gap-1.5 mt-1.5">
                       {['auto', 'portrait', 'landscape'].map((ori) => (
                         <button
@@ -934,14 +1188,14 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                               : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                           }`}
                         >
-                          {ori}
+                          {ori === 'auto' ? 'Automatique' : ori === 'portrait' ? 'Portrait' : 'Paysage'}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Page Size</label>
+                    <label className="text-xs font-semibold text-slate-700">Format de papier</label>
                     <div className="grid grid-cols-3 gap-1.5 mt-1.5">
                       {['fit', 'a4', 'letter'].map((sz) => (
                         <button
@@ -954,14 +1208,14 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                               : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                           }`}
                         >
-                          {sz}
+                          {sz === 'fit' ? 'Ajusté' : sz}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Margins</label>
+                    <label className="text-xs font-semibold text-slate-700">Marges</label>
                     <div className="grid grid-cols-3 gap-1.5 mt-1.5">
                       {['none', 'small', 'big'].map((mg) => (
                         <button
@@ -974,7 +1228,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                               : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                           }`}
                         >
-                          {mg}
+                          {mg === 'none' ? 'Aucune' : mg === 'small' ? 'Petite' : 'Grande'}
                         </button>
                       ))}
                     </div>
@@ -982,11 +1236,108 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                 </div>
               )}
 
-              {/* Watermark Options */}
+              {/* 6. Rotate & Organize PDF Options */}
+              {tool.id === 'rotate-pdf' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Organiser & Faire pivoter ({pageOrganizeList.length} pages)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPageOrganizeList((prev) =>
+                          prev.map((p) => ({ ...p, rotation: (p.rotation + 90) % 360 }))
+                        )
+                      }
+                      className="text-[11px] font-bold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCw className="w-3 h-3" /> Tourner toutes (90°)
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {pageOrganizeList.map((pageItem, idx) => (
+                      <div
+                        key={pageItem.id}
+                        className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-md bg-white border border-slate-200 flex items-center justify-center font-bold text-[11px] text-slate-700 shadow-2xs">
+                            {pageItem.pageIndex + 1}
+                          </span>
+                          <span className="font-semibold text-slate-800">Page {pageItem.pageIndex + 1}</span>
+                          {pageItem.rotation > 0 && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-bold">
+                              {pageItem.rotation}°
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => rotateOrganizePage(idx)}
+                            className="px-2 py-1 rounded bg-white hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-indigo-600 flex items-center gap-1 cursor-pointer"
+                            title="Pivoter de 90 degrés"
+                          >
+                            <RotateCw className="w-3 h-3" /> +90°
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveOrganizePage(idx, 'up')}
+                            className="p-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
+                            title="Déplacer vers le haut"
+                          >
+                            <MoveUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === pageOrganizeList.length - 1}
+                            onClick={() => moveOrganizePage(idx, 'down')}
+                            className="p-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
+                            title="Déplacer vers le bas"
+                          >
+                            <MoveDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2 pt-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setPageOrganizeList((prev) => [...prev].reverse())}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Inverser l'ordre
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPageOrganizeList(
+                          Array.from({ length: detectedPageCount }, (_, i) => ({
+                            id: i,
+                            pageIndex: i,
+                            rotation: 0,
+                          }))
+                        )
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Réinitialiser
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 7. Watermark Options */}
               {tool.id === 'watermark-pdf' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700">Watermark Text</label>
+                    <label className="text-xs font-semibold text-slate-700">Texte du filigrane</label>
                     <input
                       type="text"
                       value={watermarkText}
@@ -994,9 +1345,35 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                       className="mt-1.5 w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
                     />
                   </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Position du filigrane</label>
+                    <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                      {[
+                        { id: 'diagonal', label: 'Diagonale (Centre)' },
+                        { id: 'center', label: 'Centre horizontal' },
+                        { id: 'header', label: 'En-tête (Haut)' },
+                        { id: 'footer', label: 'Pied de page (Bas)' },
+                      ].map((pos) => (
+                        <button
+                          key={pos.id}
+                          type="button"
+                          onClick={() => setWatermarkPosition(pos.id as any)}
+                          className={`p-2 rounded-xl text-[11px] font-semibold border transition-all ${
+                            watermarkPosition === pos.id
+                              ? 'bg-fuchsia-50 border-fuchsia-300 text-fuchsia-800 font-bold'
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
-                      <span>Opacity</span>
+                      <span>Opacité</span>
                       <span className="text-indigo-600">{Math.round(watermarkOpacity * 100)}%</span>
                     </div>
                     <input
@@ -1012,51 +1389,38 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                 </div>
               )}
 
-              {/* Rotate Options */}
-              {tool.id === 'rotate-pdf' && (
+              {/* 8. Protect PDF (Real AES-256 Encryption) */}
+              {tool.id === 'protect-pdf' && (
                 <div className="space-y-3">
-                  <label className="text-xs font-semibold text-slate-700">Rotation Angle</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { angle: 90, label: '90° Right' },
-                      { angle: 180, label: '180° Flip' },
-                      { angle: 270, label: '90° Left' },
-                    ].map((item) => (
-                      <button
-                        key={item.angle}
-                        type="button"
-                        onClick={() => setRotateAngle(item.angle)}
-                        className={`p-2.5 rounded-xl text-xs font-bold border transition-all ${
-                          rotateAngle === item.angle
-                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-2xs'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+                  <label className="text-xs font-semibold text-slate-700">Définir le mot de passe d'accès</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Saisissez un mot de passe sécurisé..."
+                      value={pdfPassword}
+                      onChange={(e) => setPdfPassword(e.target.value)}
+                      className="w-full px-3 py-2 pr-9 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/10 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="p-3 rounded-xl bg-rose-50/80 border border-rose-200 text-[11px] text-rose-800 space-y-1">
+                    <p className="font-bold flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5" /> Chiffrement standard AES-256
+                    </p>
+                    <p className="text-rose-700 leading-relaxed">
+                      Ce mot de passe sera obligatoirement demandé par tout lecteur PDF (Acrobat, Chrome, Mac Aperçu, smartphone) pour pouvoir ouvrir et consulter le document.
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Protect Options */}
-              {tool.id === 'protect-pdf' && (
-                <div className="space-y-3">
-                  <label className="text-xs font-semibold text-slate-700">Set PDF Password</label>
-                  <input
-                    type="password"
-                    placeholder="Enter strong password..."
-                    value={pdfPassword}
-                    onChange={(e) => setPdfPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/10"
-                  />
-                  <p className="text-[10px] text-slate-500">
-                    Applies 256-bit AES protection signature to prevent unauthorized opening.
-                  </p>
-                </div>
-              )}
-
-              {/* Conversion Trigger Button */}
+              {/* Execution Trigger Button */}
               <div className="pt-2">
                 <button
                   type="button"
@@ -1065,7 +1429,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                   className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-600 hover:from-indigo-700 hover:to-rose-700 text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Zap className="w-4 h-4 fill-current" />
-                  <span>Execute {tool.name}</span>
+                  <span>Lancer {tool.name}</span>
                 </button>
               </div>
             </div>
@@ -1073,22 +1437,22 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
             {/* Quota Information Card */}
             <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs text-slate-500 space-y-2 shadow-2xs">
               <div className="flex items-center justify-between text-slate-800 font-semibold">
-                <span>Usage Limit Status</span>
-                <span className={isUnlimited ? 'text-amber-600' : 'text-rose-600 font-bold'}>
-                  {isUnlimited ? 'Unlimited Active' : `${remainingDailyQuota} tasks left`}
+                <span>Statut du compte</span>
+                <span className={isUnlimited ? 'text-amber-600 font-bold' : 'text-slate-700 font-bold'}>
+                  {isUnlimited ? 'Illimité Actif' : `${remainingDailyQuota} tâches restantes`}
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-500">
                 {isUnlimited
-                  ? 'As a Pro subscriber, you enjoy zero queue delays, 500MB batch processing, and unlimited daily conversions.'
-                  : 'Free tier allows 3 tasks per 24 hours. Upgrade to Pro for unthrottled unlimited processing.'}
+                  ? 'En tant que membre Pro, profitez de conversions instantanées sans limitation quotidienne et jusqu\'à 500 Mo.'
+                  : 'Le forfait gratuit permet 3 opérations par jour. Passez à Pro pour un accès illimité.'}
               </p>
               {!isUnlimited && (
                 <button
                   onClick={() => openStripeCheckout('pro_monthly')}
                   className="text-indigo-600 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer"
                 >
-                  <Crown className="w-3 h-3 text-amber-500" /> Passer au Forfait Pro Illimité ($9/mois) →
+                  <Crown className="w-3 h-3 text-amber-500" /> Passer au Forfait Pro ($9/mois) →
                 </button>
               )}
             </div>
@@ -1101,16 +1465,18 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
             <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mx-auto flex items-center justify-center shadow-sm">
               <CheckCircle2 className="w-9 h-9" />
             </div>
-            <h2 className="text-2xl font-extrabold text-slate-900">Your file is ready!</h2>
-            <p className="text-xs text-slate-500">Processed in {Math.floor(Math.random() * 400) + 250}ms with hardware acceleration.</p>
+            <h2 className="text-2xl font-extrabold text-slate-900">Votre document est prêt !</h2>
+            <p className="text-xs text-slate-500">
+              Traitement haute fidélité complété avec succès et respect de la structure du document.
+            </p>
           </div>
 
-          {/* Savings / Stats Banner */}
+          {/* Savings / Stats Banner (For Compress) */}
           {result.savings !== undefined && result.savings > 0 && (
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between max-w-lg mx-auto">
               <div>
-                <p className="text-xs text-emerald-700 font-semibold">File Size Saved</p>
-                <p className="text-lg font-extrabold text-emerald-800">-{result.savings}% Smaller!</p>
+                <p className="text-xs text-emerald-700 font-semibold">Espace économisé</p>
+                <p className="text-lg font-extrabold text-emerald-800">-{result.savings}% de réduction !</p>
               </div>
               <div className="text-right text-xs text-slate-600 font-mono">
                 <span className="line-through text-slate-400 mr-2">
@@ -1127,44 +1493,47 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
           {result.textResult && (
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 max-w-2xl mx-auto">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800">Extracted Text Preview</span>
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <FileSearch className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Texte extrait du document</span>
+                </span>
                 <button
                   onClick={handleCopyText}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 shadow-2xs"
+                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedText ? 'Copied!' : 'Copy Text'}</span>
+                  <span>{copiedText ? 'Copié !' : 'Copier le texte'}</span>
                 </button>
               </div>
               <textarea
                 readOnly
                 value={result.textResult}
-                rows={6}
+                rows={8}
                 className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono focus:outline-none"
               />
             </div>
           )}
 
-          {/* Converted Images Grid Preview (If multiple converted images) */}
+          {/* Converted Images Grid Preview (If multiple converted images or PDF to Images) */}
           {result.imageResults && result.imageResults.length > 0 && (
             <div className="space-y-3 max-w-3xl mx-auto">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500 text-center">
-                Rendered Images ({result.imageResults.length})
+                Pages rendues en haute résolution ({result.imageResults.length} page{result.imageResults.length > 1 ? 's' : ''})
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {result.imageResults.map((img, idx) => (
-                  <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
+                  <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2 shadow-2xs">
                     <img
                       src={img.dataUrl}
                       alt={img.fileName}
-                      className="w-full h-32 object-contain rounded-lg bg-white border border-slate-200"
+                      className="w-full h-36 object-contain rounded-lg bg-white border border-slate-200 shadow-2xs"
                     />
                     <p className="text-[11px] font-bold text-slate-800 truncate">{img.fileName}</p>
                     <button
                       onClick={() => handleDownload(img.dataUrl, img.fileName)}
-                      className="w-full py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1 shadow-2xs"
+                      className="w-full py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <Download className="w-3 h-3" /> Download
+                      <Download className="w-3 h-3" /> Télécharger
                     </button>
                   </div>
                 ))}
@@ -1180,7 +1549,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
             >
               <Download className="w-4 h-4" />
               <span>
-                Download {result.zipBlob ? 'ZIP Archive' : result.fileName || 'Processed File'}
+                Télécharger {result.zipBlob ? 'l\'archive ZIP complète' : result.fileName || 'le fichier traité'}
               </span>
             </button>
 
@@ -1191,7 +1560,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
               }}
               className="px-5 py-3.5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors shadow-2xs cursor-pointer"
             >
-              Convert Another File
+              Traiter un autre document
             </button>
           </div>
         </div>
@@ -1208,7 +1577,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
             </div>
 
             <div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Processing Document...</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Traitement en cours...</h3>
               <p className="text-xs text-slate-500">{progress.step}</p>
             </div>
 
@@ -1221,7 +1590,7 @@ export const ToolRunner: React.FC<ToolRunnerProps> = ({ tool, onBack }) => {
                 />
               </div>
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                <span>Optimizing Streams</span>
+                <span>Moteur FlexPDF</span>
                 <span>{progress.percent}%</span>
               </div>
             </div>
